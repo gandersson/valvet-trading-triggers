@@ -2,6 +2,16 @@
 
 **Status:** Nivå 2 klar (2026-05-23) | **Nästa milstolpe:** Nivå 3 — Köp/sälj-signaler
 
+**Dagens sammanfattning (2026-05-23):**
+- ✅ Flyttade projektet till `/Users/xandgo/dev/trading-triggers`
+- ✅ Implementerade retry-logik + circuit breaker (Nivå 1)
+- ✅ Implementerade sektorkorrelation (Nivå 2)
+- ✅ 43/43 tester passerar
+- ✅ Omfattande README.md med både teknisk dokumentation och användarguide
+- ✅ Säkerhetsfix: Tog bort exponerad Discord webhook från git-historik
+- ✅ CI/CD pipeline pausad tills vidare (se CI/CD-sektion)
+- ✅ GitHub uppdaterad med force-push av rensat repo
+
 ---
 
 ## 🎯 Nivåer (Ny arkitektur)
