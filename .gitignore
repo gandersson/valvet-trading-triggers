@@ -1,34 +1,17 @@
+# Miljövariabler (innehåller secrets)
+config/.env
+.env
+
 # Python
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
+*.pyc
+.pytest_cache/
 .venv/
-venv/
-ENV/
-env/
 
 # Data
-data/
 *.db
-*.sqlite3
-*.parquet
+*.db-journal
 
 # IDE
 .vscode/
 .idea/
-*.swp
-*.swo
-
-# Secrets
-.env
-.env.local
-
-# Logs
-logs/
-*.log
-
-# OS
-.DS_Store
-Thumbs.db
