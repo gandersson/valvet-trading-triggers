@@ -9,12 +9,33 @@ import sqlite3
 import os
 import sys
 from datetime import datetime
+from pathlib import Path
 from typing import List, Dict
 
 import yfinance as yf
 import aiohttp
 
 from resilience import retry_yfinance, discord_circuit_breaker
+
+# === Ladda .env-fil ===
+def load_env_file():
+    """Ladda miljövariabler från config/.env om den finns."""
+    env_paths = [
+        Path(__file__).parent.parent / "config" / ".env",
+        Path.home() / ".config" / "trading-triggers" / ".env",
+        Path(".env"),
+    ]
+    for env_path in env_paths:
+        if env_path.exists():
+            with open(env_path) as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        key, value = line.split("=", 1)
+                        os.environ.setdefault(key, value)
+            break
+
+load_env_file()
 
 # === KONFIGURATION ===
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL", "")

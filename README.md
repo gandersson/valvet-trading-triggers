@@ -37,13 +37,28 @@ pip install -r requirements.txt
 
 ### 2. Konfigurera Discord-webhook (valfritt)
 
+⚠️ **VIKTIGT:** Lägg ALDRIG din webhook-URL i git! Använd en `.env`-fil utanför repot.
+
 ```bash
-# Skapa config/.env från template
+# 1. Skapa config/.env från template (för att se formatet)
 cp config/.env.example config/.env
 
-# Redigera config/.env och lägg in din Discord-webhook URL:
-# DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
+# 2. Redigera config/.env och lägg in din Discord-webhook URL:
+# DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/YOUR_WEBHOOK_URL
+
+# 3. Verifiera att .env är i .gitignore (så den inte checkas in):
+grep "config/.env" .gitignore  # Ska visa: config/.env
 ```
+
+**Hur du skapar en webhook:**
+1. Gå till din Discord-server
+2. Server Settings → Integrations → Webhooks
+3. New Webhook → välj kanal → Copy Webhook URL
+4. Klistra in URL:en i din `config/.env`-fil
+
+**Säkerhet:**
+- `.env`-filen är redan i `.gitignore` och kommer inte checkas in
+- Om du råkar exponera en webhook: Ta bort den i Discord och skapa en ny omedelbart
 
 ### 3. Kör systemet
 
