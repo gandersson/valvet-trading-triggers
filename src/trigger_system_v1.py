@@ -5,6 +5,7 @@ Hämtar kurser, utvärderar triggers, skickar Discord-meddelande.
 """
 
 import asyncio
+import logging
 import os
 import sqlite3
 import sys
@@ -19,6 +20,8 @@ from signal_generator import (
     calculate_confidence_score,
     generate_signal,
 )
+
+logger = logging.getLogger(__name__)
 
 
 # === Ladda .env-fil ===
@@ -140,7 +143,7 @@ def init_db():
 
     conn.commit()
     conn.close()
-    print("✅ Databas initierad")
+    logger.info("Database initialized")
 
 
 def get_db_connection():
@@ -206,7 +209,7 @@ def create_triggers():
         count = c.fetchone()[0]
 
         if count > 0:
-            print(f"⚠️  {count} triggers finns redan för {today}, skapar inte nya")
+            logger.info("%s triggers already exist for %s, skipping creation", count, today)
             return
 
         triggers = [
@@ -228,7 +231,7 @@ def create_triggers():
             )
 
         conn.commit()
-        print(f"✅ {len(triggers)} triggers skapade för {today}")
+        logger.info("%s triggers created for %s", len(triggers), today)
     finally:
         conn.close()
 
@@ -486,7 +489,7 @@ def evaluate_all_triggers(evaluation_time: str = "1h"):
     """Hämta alla aktiva triggers och utvärdera dem"""
     valid_times = {"1h", "2h", "EOD"}
     if evaluation_time not in valid_times:
-        print(f"❌ Ogiltig evaluation_time: {evaluation_time}. Måste vara: {valid_times}")
+        logger.error("Invalid evaluation_time: %s. Must be: %s", evaluation_time, valid_times)
         return []
 
     conn = get_db_connection()
@@ -514,11 +517,11 @@ def evaluate_all_triggers(evaluation_time: str = "1h"):
     for trigger in triggers:
         trigger_id, symbol, trigger_type, condition = trigger
 
-        print(f"📊 Utvärderar {symbol} ({trigger_type}) för {evaluation_time}...")
+        logger.info("Evaluating %s (%s) for %s", symbol, trigger_type, evaluation_time)
         try:
             data = fetch_stock_data(symbol)
         except Exception as e:
-            print(f"   ❌ Kunde inte hämta data för {symbol}: {e}")
+            logger.error("Could not fetch data for %s: %s", symbol, e)
             continue
 
         save_market_data(data)
@@ -563,9 +566,13 @@ def evaluate_all_triggers(evaluation_time: str = "1h"):
         if signal is not None:
             save_signal(signal, today, evaluation_time, result_dict)
             signals.append(signal)
-            print(f"   🔔 Signal: {signal['recommendation']} (confidence: {signal['confidence_score']})")
+            logger.info(
+                "Signal: %s (confidence: %s)", signal["recommendation"], signal["confidence_score"]
+            )
 
-        print(f"   Resultat: {result} (pris: ${data['price']}, öppning: ${data['open']})")
+        logger.info(
+            "Result: %s %s (price: $%s, open: $%s)", symbol, result, data["price"], data["open"]
+        )
 
     return results, signals
 
@@ -574,17 +581,15 @@ def evaluate_all_triggers(evaluation_time: str = "1h"):
 async def send_discord_report(results: list[dict], evaluation_time: str = "1h", signals: list[dict] = None):
     """Skicka trigger-rapport till Discord"""
     if not DISCORD_WEBHOOK_URL:
-        print("⚠️  Ingen DISCORD_WEBHOOK_URL satt")
-        print("Sätt miljövariabeln: export DISCORD_WEBHOOK_URL=...")
+        logger.warning("No DISCORD_WEBHOOK_URL set — skipping Discord report")
         return
 
     if not results:
-        print("⚠️  Inga resultat att rapportera")
+        logger.warning("No results to report")
         return
 
-    # Circuit breaker check
     if not discord_circuit_breaker.can_execute():
-        print("❌ Discord webhook blocked by circuit breaker.")
+        logger.error("Discord webhook blocked by circuit breaker")
         return
 
     hits = sum(1 for r in results if r["result"] == "hit")
@@ -655,13 +660,13 @@ async def send_discord_report(results: list[dict], evaluation_time: str = "1h", 
             async with session.post(DISCORD_WEBHOOK_URL, json=payload) as resp:
                 if resp.status == 204:
                     discord_circuit_breaker.record_success()
-                    print("✅ Discord-meddelande skickat!")
+                    logger.info("Discord report sent")
                 else:
                     discord_circuit_breaker.record_failure()
-                    print(f"❌ Discord-fel: {resp.status}")
+                    logger.error("Discord error: HTTP %s", resp.status)
         except aiohttp.ClientError as exc:
             discord_circuit_breaker.record_failure()
-            print(f"❌ Discord-anslutningsfel: {exc}")
+            logger.error("Discord connection error: %s", exc)
 
 
 # === RAPPORTERING ===
@@ -749,7 +754,7 @@ def print_historical_stats():
     stats = get_historical_accuracy()
 
     if not stats:
-        print("📊 Inga historiska data ännu")
+        logger.info("No historical data yet")
         return
 
     print("\n" + "=" * 70)
@@ -770,7 +775,6 @@ def print_historical_stats():
 
 # === HUVUDPROGRAM ===
 async def main():
-    # Läs evaluation_time från miljövariabel eller argument
     evaluation_time = os.environ.get("EVALUATION_TIME", "1h")
     if len(sys.argv) > 1:
         evaluation_time = sys.argv[1]
@@ -778,29 +782,20 @@ async def main():
     time_labels = {"1h": "1h (16:35 CET)", "2h": "2h (18:35 CET)", "EOD": "EOD (23:00 CET)"}
     time_label = time_labels.get(evaluation_time, evaluation_time)
 
-    print(f"🚀 Trading Trigger System - V1 — {time_label}")
-    print("=" * 70)
+    logger.info("Trading Trigger System V1 — %s", time_label)
 
-    # 1. Initiera databas
     init_db()
-
-    # 2. Skapa triggers
     create_triggers()
 
-    # 3. Hämta data och utvärdera
-    print(f"\n📥 Hämtar aktiedata och utvärderar triggers ({evaluation_time})...")
+    logger.info("Fetching stock data and evaluating triggers (%s)...", evaluation_time)
     results, signals = evaluate_all_triggers(evaluation_time=evaluation_time)
 
-    # 4. Skriv ut resultat
     print_results(results, evaluation_time=evaluation_time, signals=signals)
-
-    # 5. Skriv ut historisk statistik
     print_historical_stats()
 
-    # 6. Skicka till Discord
     await send_discord_report(results, evaluation_time=evaluation_time, signals=signals)
 
-    print("✅ Klar!")
+    logger.info("Done")
 
 
 if __name__ == "__main__":
