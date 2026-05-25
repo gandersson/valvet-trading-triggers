@@ -10,7 +10,6 @@ from __future__ import annotations
 import re
 import sqlite3
 from pathlib import Path
-from typing import Dict, List, Optional
 
 import pandas as pd
 import yfinance as yf
@@ -22,7 +21,7 @@ DB_PATH = Path("data/triggers.db")
 
 # === SEKTORMAPPNING ===
 # Utbyggbar: lägg till nya aktier/sektorer enkelt
-SECTOR_MAP: Dict[str, str] = {
+SECTOR_MAP: dict[str, str] = {
     # Semiconductor
     "NVDA": "SOXX",
     "AMD": "SOXX",
@@ -108,7 +107,7 @@ SECTOR_MAP: Dict[str, str] = {
 }
 
 # ETF-metadata (för framtida utökning)
-ETF_INFO: Dict[str, Dict[str, str]] = {
+ETF_INFO: dict[str, dict[str, str]] = {
     "SOXX": {"name": "iShares Semiconductor ETF", "category": "Technology"},
     "XLY": {
         "name": "Consumer Discretionary Select Sector SPDR",
@@ -261,7 +260,7 @@ BEARISH_KEYWORDS: set[str] = {
 }
 
 # Nyckelord som har kontextberoende betydelse (hanteras speciellt)
-CONTEXT_DEPENDENT: Dict[str, tuple[set[str], set[str]]] = {
+CONTEXT_DEPENDENT: dict[str, tuple[set[str], set[str]]] = {
     "resistance": (
         {"över", "bryter", "break", "överskrida", "passera", "above"},
         {"vid", "stannar", "under", "below", "nära", "close to"},
@@ -304,9 +303,6 @@ def extract_direction(trigger_text: str) -> str:
         return "neutral"
 
     text_lower = trigger_text.lower()
-    # Extrahera individuella ord för nyckelords-matchning
-    individual_words = re.findall(r"[a-zA-ZåäöÅÄÖ]+", text_lower)
-    word_set = set(individual_words)
 
     bullish_count = _count_keywords(trigger_text, BULLISH_KEYWORDS)
     bearish_count = _count_keywords(trigger_text, BEARISH_KEYWORDS)
@@ -316,9 +312,7 @@ def extract_direction(trigger_text: str) -> str:
         if keyword in text_lower:
             idx = text_lower.find(keyword)
             if idx != -1:
-                context_window = text_lower[
-                    max(0, idx - 40) : min(len(text_lower), idx + 40)
-                ]
+                context_window = text_lower[max(0, idx - 40) : min(len(text_lower), idx + 40)]
                 for ctx in bullish_context:
                     if ctx in context_window:
                         bullish_count += 1
@@ -398,11 +392,7 @@ def fetch_sector_data(etf_symbol: str, target_date: str) -> dict:
     row = row.iloc[0]
     open_price = float(row["Open"])
     close_price = float(row["Close"])
-    change_pct = (
-        round((close_price - open_price) / open_price * 100, 2)
-        if open_price != 0
-        else 0.0
-    )
+    change_pct = round((close_price - open_price) / open_price * 100, 2) if open_price != 0 else 0.0
 
     return {
         "symbol": etf_symbol,
@@ -465,7 +455,7 @@ def analyze_backtest_sector_correlation(backtest_results: list) -> dict:
 
     total = 0
     correlated = 0
-    per_sector: Dict[str, Dict] = {}
+    per_sector: dict[str, dict] = {}
 
     for res in backtest_results:
         symbol = res.get("symbol", "")
@@ -487,9 +477,7 @@ def analyze_backtest_sector_correlation(backtest_results: list) -> dict:
             continue
 
         sector_change = sector_data.get("change_percent", 0.0)
-        is_correct = evaluate_sector_correlation(
-            trigger_result, direction, sector_change
-        )
+        is_correct = evaluate_sector_correlation(trigger_result, direction, sector_change)
 
         total += 1
         if is_correct:
@@ -522,20 +510,12 @@ def analyze_backtest_sector_correlation(backtest_results: list) -> dict:
 
     for etf in per_sector:
         stats = per_sector[etf]
-        stats["accuracy"] = (
-            round(stats["correlated"] / stats["total"] * 100, 1)
-            if stats["total"] > 0
-            else 0.0
-        )
+        stats["accuracy"] = round(stats["correlated"] / stats["total"] * 100, 1) if stats["total"] > 0 else 0.0
         stats["bullish_accuracy"] = (
-            round(stats["bullish_correct"] / stats["bullish_total"] * 100, 1)
-            if stats["bullish_total"] > 0
-            else 0.0
+            round(stats["bullish_correct"] / stats["bullish_total"] * 100, 1) if stats["bullish_total"] > 0 else 0.0
         )
         stats["bearish_accuracy"] = (
-            round(stats["bearish_correct"] / stats["bearish_total"] * 100, 1)
-            if stats["bearish_total"] > 0
-            else 0.0
+            round(stats["bearish_correct"] / stats["bearish_total"] * 100, 1) if stats["bearish_total"] > 0 else 0.0
         )
         stats["symbols"] = sorted(list(stats["symbols"]))
 
@@ -619,9 +599,9 @@ def save_sector_analysis(
 
 
 def load_sector_analyses(
-    target_date: Optional[str] = None,
-    symbol: Optional[str] = None,
-) -> List[Dict]:
+    target_date: str | None = None,
+    symbol: str | None = None,
+) -> list[dict]:
     """Ladda sparade sektoranalyser från databasen."""
     conn = sqlite3.connect(DB_PATH, timeout=10.0)
     c = conn.cursor()
@@ -632,7 +612,7 @@ def load_sector_analyses(
         FROM backtest_sector_analysis
         WHERE 1=1
     """
-    params: List = []
+    params: list = []
 
     if target_date:
         query += " AND target_date = ?"

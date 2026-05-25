@@ -17,19 +17,19 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from signal_generator import (
-    calculate_confidence_score,
-    map_signal_strength,
-    generate_signal,
-    calculate_hypothetical_pnl,
-    aggregate_signals_by_symbol,
-    filter_signals_by_strength,
     _build_recommendation,
+    aggregate_signals_by_symbol,
+    calculate_confidence_score,
+    calculate_hypothetical_pnl,
+    filter_signals_by_strength,
+    generate_signal,
+    map_signal_strength,
 )
-
 
 # =============================================================================
 # Confidence Score Calculation
 # =============================================================================
+
 
 class TestCalculateConfidenceScore:
     """Tester för calculate_confidence_score — N1 * N2 * historical_accuracy."""
@@ -86,6 +86,7 @@ class TestCalculateConfidenceScore:
 # Signal Strength Mapping
 # =============================================================================
 
+
 class TestMapSignalStrength:
     """Tester för map_signal_strength — confidence → styrka 1-5."""
 
@@ -132,6 +133,7 @@ class TestMapSignalStrength:
 # =============================================================================
 # Signal Generation
 # =============================================================================
+
 
 class TestGenerateSignal:
     """Tester för generate_signal — köp/sälj-signalgenerering."""
@@ -211,6 +213,7 @@ class TestGenerateSignal:
 # Build Recommendation
 # =============================================================================
 
+
 class TestBuildRecommendation:
     """Tester för _build_recommendation."""
 
@@ -234,6 +237,7 @@ class TestBuildRecommendation:
 # =============================================================================
 # Hypothetical P&L Calculation
 # =============================================================================
+
 
 class TestCalculateHypotheticalPnL:
     """Tester för calculate_hypothetical_pnl — hypotetisk vinst/förlust."""
@@ -292,7 +296,7 @@ class TestCalculateHypotheticalPnL:
         ]
         price_data = [
             {"symbol": "NVDA", "entry_price": 100.0, "exit_price": 110.0},  # +10%
-            {"symbol": "WMT", "entry_price": 100.0, "exit_price": 95.0},   # sell, -5% → +5%
+            {"symbol": "WMT", "entry_price": 100.0, "exit_price": 95.0},  # sell, -5% → +5%
             {"symbol": "TTWO", "entry_price": 100.0, "exit_price": 97.0},  # -3%
         ]
         results = calculate_hypothetical_pnl(signals, price_data)
@@ -400,6 +404,7 @@ class TestCalculateHypotheticalPnL:
 # Aggregate Signals by Symbol
 # =============================================================================
 
+
 class TestAggregateSignalsBySymbol:
     """Tester för aggregate_signals_by_symbol."""
 
@@ -469,6 +474,7 @@ class TestAggregateSignalsBySymbol:
 # Filter Signals by Strength
 # =============================================================================
 
+
 class TestFilterSignalsByStrength:
     """Tester för filter_signals_by_strength."""
 
@@ -476,7 +482,7 @@ class TestFilterSignalsByStrength:
         """Behåll bara signaler med styrka ≥ 3."""
         signals = [
             generate_signal("NVDA", "bullish", 0.75),  # strength 5
-            generate_signal("WMT", "bearish", 0.60),   # strength 4
+            generate_signal("WMT", "bearish", 0.60),  # strength 4
             generate_signal("TTWO", "bullish", 0.40),  # strength 3
             generate_signal("ENPH", "bullish", 0.20),  # strength 2
             generate_signal("WDAY", "bullish", 0.05),  # None (strength 1)
@@ -491,7 +497,7 @@ class TestFilterSignalsByStrength:
         """Behåll bara signaler med styrka ≥ 4."""
         signals = [
             generate_signal("NVDA", "bullish", 0.75),  # strength 5
-            generate_signal("WMT", "bearish", 0.60),   # strength 4
+            generate_signal("WMT", "bearish", 0.60),  # strength 4
             generate_signal("TTWO", "bullish", 0.40),  # strength 3
         ]
         result = filter_signals_by_strength(signals, min_strength=4)
@@ -511,7 +517,7 @@ class TestFilterSignalsByStrength:
         """Inga signaler passerar filtret."""
         signals = [
             generate_signal("NVDA", "bullish", 0.20),  # strength 2
-            generate_signal("WMT", "bearish", 0.15),   # strength 2
+            generate_signal("WMT", "bearish", 0.15),  # strength 2
         ]
         result = filter_signals_by_strength(signals, min_strength=3)
         assert len(result) == 0
@@ -525,6 +531,7 @@ class TestFilterSignalsByStrength:
 # =============================================================================
 # Edge Cases
 # =============================================================================
+
 
 class TestEdgeCases:
     """Edge cases och felhantering."""
@@ -593,6 +600,7 @@ class TestEdgeCases:
 # Integration-like tests
 # =============================================================================
 
+
 class TestFullSignalFlow:
     """Integrationstester för hela signalflödet."""
 
@@ -637,10 +645,10 @@ class TestFullSignalFlow:
     def test_end_to_end_filter_and_aggregate(self):
         """Komplett flöde med filtrering och aggregering."""
         signals = [
-            generate_signal("NVDA", "bullish", 0.8),   # strength 5
-            generate_signal("NVDA", "bearish", 0.6),   # strength 4
-            generate_signal("WMT", "bullish", 0.4),    # strength 3
-            generate_signal("TTWO", "bullish", 0.2),   # strength 2
+            generate_signal("NVDA", "bullish", 0.8),  # strength 5
+            generate_signal("NVDA", "bearish", 0.6),  # strength 4
+            generate_signal("WMT", "bullish", 0.4),  # strength 3
+            generate_signal("TTWO", "bullish", 0.2),  # strength 2
         ]
 
         # Filtrera styrka ≥ 3

@@ -2,14 +2,13 @@
 
 import sys
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 # Ensure the project src is on the path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-import pytest
 import pandas as pd
-from tenacity import RetryError
+import pytest
 
 
 class TestFetchStockDataRetry:
@@ -18,13 +17,16 @@ class TestFetchStockDataRetry:
     def test_fetch_stock_data_succeeds_with_mocked_data(self):
         """Verify fetch_stock_data works when yfinance returns data."""
         # Create a minimal DataFrame with one row
-        df = pd.DataFrame({
-            "Open": [150.0],
-            "High": [155.0],
-            "Low": [148.0],
-            "Close": [152.0],
-            "Volume": [1000000],
-        }, index=[pd.Timestamp("2026-05-23 14:30:00")])
+        df = pd.DataFrame(
+            {
+                "Open": [150.0],
+                "High": [155.0],
+                "Low": [148.0],
+                "Close": [152.0],
+                "Volume": [1000000],
+            },
+            index=[pd.Timestamp("2026-05-23 14:30:00")],
+        )
 
         with patch("yfinance.Ticker") as mock_ticker_class:
             mock_ticker = MagicMock()
@@ -75,13 +77,16 @@ class TestFetchStockDataRetry:
         assert callable(fetch_stock_data)
 
         # Test that a successful call still works
-        df = pd.DataFrame({
-            "Open": [150.0],
-            "High": [155.0],
-            "Low": [148.0],
-            "Close": [152.0],
-            "Volume": [1000000],
-        }, index=[pd.Timestamp("2026-05-23 14:30:00")])
+        df = pd.DataFrame(
+            {
+                "Open": [150.0],
+                "High": [155.0],
+                "Low": [148.0],
+                "Close": [152.0],
+                "Volume": [1000000],
+            },
+            index=[pd.Timestamp("2026-05-23 14:30:00")],
+        )
 
         with patch("yfinance.Ticker") as mock_ticker_class:
             mock_ticker = MagicMock()

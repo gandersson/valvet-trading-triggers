@@ -12,13 +12,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from mcp_server import (
-    _get_todays_triggers,
+    _add_stock,
     _evaluate_trigger,
+    _export_to_obsidian,
     _get_historical_accuracy,
     _get_market_summary,
-    _add_stock,
+    _get_todays_triggers,
     _get_trigger_stats,
-    _export_to_obsidian,
 )
 
 
@@ -82,12 +82,14 @@ async def test_all_tools():
     # ── 6. evaluate_trigger ───────────────────────────────────────────────────
     print("\n[6/8] evaluate_trigger (symbol=TEST, trigger_type=Open_Above)")
     try:
-        result = await _evaluate_trigger({
-            "symbol": "TEST",
-            "trigger_type": "Open_Above",
-            "current_price": 150.0,
-            "open_price": 145.0,
-        })
+        result = await _evaluate_trigger(
+            {
+                "symbol": "TEST",
+                "trigger_type": "Open_Above",
+                "current_price": 150.0,
+                "open_price": 145.0,
+            }
+        )
         print(result[0].text[:500])
         print("  ✓ PASS")
     except Exception as e:

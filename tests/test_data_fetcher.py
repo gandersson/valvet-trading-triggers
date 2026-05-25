@@ -2,12 +2,12 @@
 
 import sys
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-import pytest
 import pandas as pd
+import pytest
 from tenacity import RetryError
 
 
@@ -16,17 +16,20 @@ class TestDataFetcherYahoo:
 
     def test_fetch_stock_data_yahoo_success(self):
         """Test that Yahoo Finance path works when data is available."""
-        df = pd.DataFrame({
-            "Open": [150.0, 151.0, 152.0],
-            "High": [155.0, 156.0, 157.0],
-            "Low": [148.0, 149.0, 150.0],
-            "Close": [152.0, 153.0, 154.0],
-            "Volume": [1000000, 1100000, 1200000],
-        }, index=[
-            pd.Timestamp("2026-05-23 14:30:00"),
-            pd.Timestamp("2026-05-23 14:31:00"),
-            pd.Timestamp("2026-05-23 14:32:00"),
-        ])
+        df = pd.DataFrame(
+            {
+                "Open": [150.0, 151.0, 152.0],
+                "High": [155.0, 156.0, 157.0],
+                "Low": [148.0, 149.0, 150.0],
+                "Close": [152.0, 153.0, 154.0],
+                "Volume": [1000000, 1100000, 1200000],
+            },
+            index=[
+                pd.Timestamp("2026-05-23 14:30:00"),
+                pd.Timestamp("2026-05-23 14:31:00"),
+                pd.Timestamp("2026-05-23 14:32:00"),
+            ],
+        )
 
         with patch("yfinance.Ticker") as mock_ticker_class:
             mock_ticker = MagicMock()
@@ -48,13 +51,16 @@ class TestDataFetcherYahoo:
 
     def test_fetch_stock_data_yahoo_ticker_mapping(self):
         """Test that OVH is mapped to OVH.PA for Yahoo Finance."""
-        df = pd.DataFrame({
-            "Open": [11.70],
-            "High": [11.90],
-            "Low": [11.60],
-            "Close": [11.74],
-            "Volume": [22704],
-        }, index=[pd.Timestamp("2026-05-25 11:22:00")])
+        df = pd.DataFrame(
+            {
+                "Open": [11.70],
+                "High": [11.90],
+                "Low": [11.60],
+                "Close": [11.74],
+                "Volume": [22704],
+            },
+            index=[pd.Timestamp("2026-05-25 11:22:00")],
+        )
 
         with patch("yfinance.Ticker") as mock_ticker_class:
             mock_ticker = MagicMock()
@@ -86,13 +92,16 @@ class TestDataFetcherYahoo:
 
     def test_fetch_stock_data_with_fallback_for_yahoo_mapped_symbol(self):
         """Test that OVH (mapped symbol) uses Yahoo Finance directly."""
-        df = pd.DataFrame({
-            "Open": [11.70],
-            "High": [11.90],
-            "Low": [11.60],
-            "Close": [11.74],
-            "Volume": [22704],
-        }, index=[pd.Timestamp("2026-05-25 11:22:00")])
+        df = pd.DataFrame(
+            {
+                "Open": [11.70],
+                "High": [11.90],
+                "Low": [11.60],
+                "Close": [11.74],
+                "Volume": [22704],
+            },
+            index=[pd.Timestamp("2026-05-25 11:22:00")],
+        )
 
         with patch("yfinance.Ticker") as mock_ticker_class:
             mock_ticker = MagicMock()
@@ -108,13 +117,16 @@ class TestDataFetcherYahoo:
 
     def test_fetch_stock_data_with_fallback_for_non_fallback_symbol(self):
         """Test that non-fallback symbols use Yahoo Finance directly."""
-        df = pd.DataFrame({
-            "Open": [150.0],
-            "High": [155.0],
-            "Low": [148.0],
-            "Close": [152.0],
-            "Volume": [1000000],
-        }, index=[pd.Timestamp("2026-05-23 14:30:00")])
+        df = pd.DataFrame(
+            {
+                "Open": [150.0],
+                "High": [155.0],
+                "Low": [148.0],
+                "Close": [152.0],
+                "Volume": [1000000],
+            },
+            index=[pd.Timestamp("2026-05-23 14:30:00")],
+        )
 
         with patch("yfinance.Ticker") as mock_ticker_class:
             mock_ticker = MagicMock()
@@ -238,10 +250,11 @@ class TestDataFetcherCompatibility:
 
     def test_fetch_stock_data_compatibility(self):
         """Test that fetch_stock_data is a drop-in replacement."""
-        from data_fetcher import fetch_stock_data
-
         # Should be callable and have the same signature
         import inspect
+
+        from data_fetcher import fetch_stock_data
+
         sig = inspect.signature(fetch_stock_data)
         params = list(sig.parameters.keys())
         assert "symbol" in params

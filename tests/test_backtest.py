@@ -21,10 +21,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from trigger_system_v1 import evaluate_trigger
 
-
 # =============================================================================
 # Helper: Build a backtest module in-memory since backtest.py does not exist yet
 # =============================================================================
+
 
 def run_backtest(symbols, days, start_date, end_date, db_path="data/triggers.db"):
     """Simulate a backtest run against historical data.
@@ -59,8 +59,9 @@ def run_backtest(symbols, days, start_date, end_date, db_path="data/triggers.db"
             start_dt = end_dt - timedelta(days=days)
 
         ticker = yf.Ticker(symbol)
-        hist = ticker.history(start=start_dt.strftime("%Y-%m-%d"),
-                               end=(end_dt + timedelta(days=1)).strftime("%Y-%m-%d"))
+        hist = ticker.history(
+            start=start_dt.strftime("%Y-%m-%d"), end=(end_dt + timedelta(days=1)).strftime("%Y-%m-%d")
+        )
 
         if hist is None or hist.empty:
             continue
@@ -78,9 +79,7 @@ def run_backtest(symbols, days, start_date, end_date, db_path="data/triggers.db"
                 "symbol": symbol,
                 "price": round(float(row["Close"]), 2),
                 "open": round(float(row["Open"]), 2),
-                "change_pct": round(
-                    (float(row["Close"]) - float(row["Open"])) / float(row["Open"]) * 100, 2
-                ),
+                "change_pct": round((float(row["Close"]) - float(row["Open"])) / float(row["Open"]) * 100, 2),
             }
 
             # Use a simple trigger condition for backtesting:
@@ -94,19 +93,21 @@ def run_backtest(symbols, days, start_date, end_date, db_path="data/triggers.db"
             elif result == "miss":
                 misses += 1
 
-            results.append({
-                "symbol": symbol,
-                "date": idx.strftime("%Y-%m-%d"),
-                "open": data["open"],
-                "close": data["price"],
-                "change_pct": data["change_pct"],
-                "result": result,
-            })
+            results.append(
+                {
+                    "symbol": symbol,
+                    "date": idx.strftime("%Y-%m-%d"),
+                    "open": data["open"],
+                    "close": data["price"],
+                    "change_pct": data["change_pct"],
+                    "result": result,
+                }
+            )
 
     # Store results in SQLite
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
-    c.execute('''
+    c.execute("""
         CREATE TABLE IF NOT EXISTS backtest_results (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             symbol TEXT NOT NULL,
@@ -117,12 +118,15 @@ def run_backtest(symbols, days, start_date, end_date, db_path="data/triggers.db"
             result TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-    ''')
+    """)
     for r in results:
-        c.execute('''
+        c.execute(
+            """
             INSERT INTO backtest_results (symbol, date, open, close, change_pct, result)
             VALUES (?, ?, ?, ?, ?, ?)
-        ''', (r["symbol"], r["date"], r["open"], r["close"], r["change_pct"], r["result"]))
+        """,
+            (r["symbol"], r["date"], r["open"], r["close"], r["change_pct"], r["result"]),
+        )
     conn.commit()
     conn.close()
 
@@ -147,6 +151,7 @@ def parse_backtest_args(argv=None):
 # =============================================================================
 # Test Cases
 # =============================================================================
+
 
 class TestBacktestArgumentParsing(unittest.TestCase):
     """Verify that argparse handles --days, --symbols, --start, --end correctly."""
@@ -179,13 +184,16 @@ class TestSimulateTriggerTrue(unittest.TestCase):
     def test_trigger_true_close_above_threshold(self, mock_ticker_class):
         # Build DataFrame where Close > Open * 1.01 → should be a hit
         dates = pd.date_range("2026-05-20", periods=3, freq="D")
-        df = pd.DataFrame({
-            "Open": [100.0, 101.0, 102.0],
-            "High": [105.0, 106.0, 107.0],
-            "Low": [99.0, 100.0, 101.0],
-            "Close": [102.0, 104.0, 106.0],  # All > open * 1.01
-            "Volume": [1000000, 1100000, 1200000],
-        }, index=dates)
+        df = pd.DataFrame(
+            {
+                "Open": [100.0, 101.0, 102.0],
+                "High": [105.0, 106.0, 107.0],
+                "Low": [99.0, 100.0, 101.0],
+                "Close": [102.0, 104.0, 106.0],  # All > open * 1.01
+                "Volume": [1000000, 1100000, 1200000],
+            },
+            index=dates,
+        )
 
         mock_ticker = MagicMock()
         mock_ticker.history.return_value = df
@@ -217,13 +225,16 @@ class TestSimulateTriggerFalse(unittest.TestCase):
         # Build DataFrame where Close <= Open → should be a miss
         # The real evaluate_trigger checks price > open_price, not close > open * 1.01
         dates = pd.date_range("2026-05-20", periods=3, freq="D")
-        df = pd.DataFrame({
-            "Open": [100.0, 100.0, 100.0],
-            "High": [100.5, 100.5, 100.5],
-            "Low": [99.5, 99.5, 99.5],
-            "Close": [99.9, 100.0, 99.8],  # All <= open (price > open is False)
-            "Volume": [1000000, 1100000, 1200000],
-        }, index=dates)
+        df = pd.DataFrame(
+            {
+                "Open": [100.0, 100.0, 100.0],
+                "High": [100.5, 100.5, 100.5],
+                "Low": [99.5, 99.5, 99.5],
+                "Close": [99.9, 100.0, 99.8],  # All <= open (price > open is False)
+                "Volume": [1000000, 1100000, 1200000],
+            },
+            index=dates,
+        )
 
         mock_ticker = MagicMock()
         mock_ticker.history.return_value = df
@@ -252,13 +263,15 @@ class TestBacktestInsufficientData(unittest.TestCase):
     @patch("yfinance.Ticker")
     def test_insufficient_data_returns_empty_results(self, mock_ticker_class):
         # Empty DataFrame simulates insufficient data
-        df = pd.DataFrame({
-            "Open": [],
-            "High": [],
-            "Low": [],
-            "Close": [],
-            "Volume": [],
-        })
+        df = pd.DataFrame(
+            {
+                "Open": [],
+                "High": [],
+                "Low": [],
+                "Close": [],
+                "Volume": [],
+            }
+        )
 
         mock_ticker = MagicMock()
         mock_ticker.history.return_value = df
@@ -289,13 +302,16 @@ class TestBacktestSkipsHolidays(unittest.TestCase):
     def test_holiday_with_nan_values_skipped(self, mock_ticker_class):
         # Include a row with NaN values to simulate a holiday
         dates = pd.date_range("2026-05-20", periods=3, freq="D")
-        df = pd.DataFrame({
-            "Open": [100.0, float("nan"), 102.0],
-            "High": [105.0, float("nan"), 107.0],
-            "Low": [99.0, float("nan"), 101.0],
-            "Close": [103.0, float("nan"), 106.0],  # middle row = holiday
-            "Volume": [1000000, 0, 1200000],
-        }, index=dates)
+        df = pd.DataFrame(
+            {
+                "Open": [100.0, float("nan"), 102.0],
+                "High": [105.0, float("nan"), 107.0],
+                "Low": [99.0, float("nan"), 101.0],
+                "Close": [103.0, float("nan"), 106.0],  # middle row = holiday
+                "Volume": [1000000, 0, 1200000],
+            },
+            index=dates,
+        )
 
         mock_ticker = MagicMock()
         mock_ticker.history.return_value = df
@@ -323,13 +339,16 @@ class TestBacktestResultStorage(unittest.TestCase):
     @patch("yfinance.Ticker")
     def test_results_saved_to_sqlite(self, mock_ticker_class):
         dates = pd.date_range("2026-05-20", periods=2, freq="D")
-        df = pd.DataFrame({
-            "Open": [100.0, 101.0],
-            "High": [105.0, 106.0],
-            "Low": [99.0, 100.0],
-            "Close": [103.0, 104.0],
-            "Volume": [1000000, 1100000],
-        }, index=dates)
+        df = pd.DataFrame(
+            {
+                "Open": [100.0, 101.0],
+                "High": [105.0, 106.0],
+                "Low": [99.0, 100.0],
+                "Close": [103.0, 104.0],
+                "Volume": [1000000, 1100000],
+            },
+            index=dates,
+        )
 
         mock_ticker = MagicMock()
         mock_ticker.history.return_value = df

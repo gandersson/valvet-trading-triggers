@@ -4,10 +4,11 @@ Migration: Add UNIQUE constraint on (trigger_id, evaluation_time) to evaluations
 SQLite doesn't support ALTER TABLE ADD CONSTRAINT, so we use the recreate-table approach.
 """
 
-import sqlite3
 import os
+import sqlite3
 
 DB_PATH = "data/triggers.db"
+
 
 def migrate():
     if not os.path.exists(DB_PATH):
@@ -59,6 +60,7 @@ def migrate():
     conn.commit()
     conn.close()
     print("✅ Migration complete: UNIQUE(trigger_id, evaluation_time) added.")
+
 
 if __name__ == "__main__":
     migrate()

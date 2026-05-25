@@ -20,14 +20,14 @@ from pathlib import Path
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
-
-from mcp.types import Tool, TextContent
+from mcp.types import TextContent, Tool
 
 # ── Paths ────────────────────────────────────────────────────────────────────
 DB_PATH = Path(__file__).parent.parent / "data" / "triggers.db"
 OBSIDIAN_VAULT = Path.home() / "Vaults" / "valvet" / "Valvet"
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
+
 
 def _db() -> sqlite3.Connection:
     """Return a connection to the SQLite database."""
@@ -41,6 +41,7 @@ def _today_iso() -> str:
 
 
 # ── Tool implementations ───────────────────────────────────────────────────────
+
 
 async def _get_todays_triggers(arguments: dict = None) -> list:
     """List today's active triggers from the database."""
@@ -87,10 +88,7 @@ async def _evaluate_trigger(arguments: dict) -> list:
     open_price = arguments.get("open_price")
 
     if not symbol or not trigger_type:
-        return [TextContent(
-            type="text",
-            text="Error: 'symbol' and 'trigger_type' are required arguments."
-        )]
+        return [TextContent(type="text", text="Error: 'symbol' and 'trigger_type' are required arguments.")]
 
     conn = _db()
     cur = conn.execute(
@@ -105,10 +103,7 @@ async def _evaluate_trigger(arguments: dict) -> list:
 
     if not trigger:
         conn.close()
-        return [TextContent(
-            type="text",
-            text=f"No active trigger found for {symbol} / {trigger_type} today."
-        )]
+        return [TextContent(type="text", text=f"No active trigger found for {symbol} / {trigger_type} today.")]
 
     trigger_id = trigger["id"]
     condition = trigger["condition"]
@@ -126,10 +121,7 @@ async def _evaluate_trigger(arguments: dict) -> list:
 
     if current_price is None:
         conn.close()
-        return [TextContent(
-            type="text",
-            text=f"No market data available for {symbol} and no current_price provided."
-        )]
+        return [TextContent(type="text", text=f"No market data available for {symbol} and no current_price provided.")]
 
     # Simple evaluation logic
     result = "hit"
@@ -162,8 +154,13 @@ async def _evaluate_trigger(arguments: dict) -> list:
             hit_rate = ROUND(100.0 * (hits + excluded.hits) / (total_evaluated + 1), 2),
             last_updated = CURRENT_TIMESTAMP
         """,
-        (symbol, trigger_type, 1 if result == "hit" else 0, 0 if result == "hit" else 1,
-         100.0 if result == "hit" else 0.0),
+        (
+            symbol,
+            trigger_type,
+            1 if result == "hit" else 0,
+            0 if result == "hit" else 1,
+            100.0 if result == "hit" else 0.0,
+        ),
     )
     conn.commit()
     conn.close()
@@ -292,10 +289,7 @@ async def _add_stock(arguments: dict) -> list:
     )
     if cur.fetchone():
         conn.close()
-        return [TextContent(
-            type="text",
-            text=f"{symbol} is already being tracked with an active trigger today."
-        )]
+        return [TextContent(type="text", text=f"{symbol} is already being tracked with an active trigger today.")]
 
     conn.execute(
         """
@@ -307,10 +301,12 @@ async def _add_stock(arguments: dict) -> list:
     conn.commit()
     conn.close()
 
-    return [TextContent(
-        type="text",
-        text=f"Stock {symbol} added to tracking with trigger '{trigger_type}' (condition: {condition})."
-    )]
+    return [
+        TextContent(
+            type="text",
+            text=f"Stock {symbol} added to tracking with trigger '{trigger_type}' (condition: {condition}).",
+        )
+    ]
 
 
 async def _remove_stock(arguments: dict) -> list:
@@ -330,14 +326,12 @@ async def _remove_stock(arguments: dict) -> list:
     conn.close()
 
     if updated:
-        return [TextContent(
-            type="text",
-            text=f"Stock {symbol} removed from today's tracking ({updated} trigger deactivated)."
-        )]
-    return [TextContent(
-        type="text",
-        text=f"No active trigger found for {symbol} today to remove."
-    )]
+        return [
+            TextContent(
+                type="text", text=f"Stock {symbol} removed from today's tracking ({updated} trigger deactivated)."
+            )
+        ]
+    return [TextContent(type="text", text=f"No active trigger found for {symbol} today to remove.")]
 
 
 async def _get_trigger_stats(arguments: dict = None) -> list:
@@ -371,8 +365,7 @@ async def _get_trigger_stats(arguments: dict = None) -> list:
     report = f"Trigger Statistics ({len(rows)} records):\n"
     report += "=" * 85 + "\n"
     report += (
-        f"{'Symbol':<8} {'Trigger Type':<18} {'Evaluated':>10} "
-        f"{'Hits':>6} {'Misses':>6} {'Hit %':>8} {'Updated':<20}\n"
+        f"{'Symbol':<8} {'Trigger Type':<18} {'Evaluated':>10} {'Hits':>6} {'Misses':>6} {'Hit %':>8} {'Updated':<20}\n"
     )
     report += "-" * 85 + "\n"
     for r in rows:
@@ -442,9 +435,7 @@ async def _export_to_obsidian(arguments: dict = None) -> list:
         lines.append("| Symbol | Trigger Type | Condition | Source | Status |")
         lines.append("|--------|--------------|-----------|--------|--------|")
         for t in triggers:
-            lines.append(
-                f"| {t['symbol']} | {t['trigger_type']} | {t['condition']} | {t['source']} | {t['status']} |"
-            )
+            lines.append(f"| {t['symbol']} | {t['trigger_type']} | {t['condition']} | {t['source']} | {t['status']} |")
     else:
         lines.append("No triggers for today.")
 
@@ -471,10 +462,16 @@ async def _export_to_obsidian(arguments: dict = None) -> list:
 
     filepath.write_text("\n".join(lines), encoding="utf-8")
 
-    return [TextContent(
-        type="text",
-        text=f"Report exported to Obsidian: {filepath}\n{len(triggers)} triggers, {len(stats)} stats, {len(market)} market records."
-    )]
+    return [
+        TextContent(
+            type="text",
+            text=(
+                f"Report exported to Obsidian: {filepath}\n"
+                f"{len(triggers)} triggers, {len(stats)} stats, "
+                f"{len(market)} market records."
+            ),
+        )
+    ]
 
 
 # ── Tool registry ────────────────────────────────────────────────────────────
@@ -606,6 +603,7 @@ async def call_tool(name: str, arguments: dict = None) -> list:
 
 
 # ── Entrypoint ───────────────────────────────────────────────────────────────
+
 
 async def main():
     async with stdio_server() as (read_stream, write_stream):

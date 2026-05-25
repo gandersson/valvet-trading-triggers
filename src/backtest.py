@@ -19,7 +19,6 @@ import sqlite3
 import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 import yfinance as yf
@@ -28,10 +27,10 @@ import yfinance as yf
 sys.path.insert(0, str(Path(__file__).parent))
 from resilience import retry_yfinance
 from sector_analysis import (
+    evaluate_sector_correlation,
     extract_direction,
     fetch_sector_data,
     get_sector_etf,
-    evaluate_sector_correlation,
     init_sector_analysis_tables,
     save_sector_analysis,
 )
@@ -121,15 +120,13 @@ def fetch_intraday_data(symbol: str, target_date: date) -> pd.DataFrame:
     return _fetch_intraday_data_raw(symbol, target_date)
 
 
-def fetch_historical_intraday_range(
-    symbol: str, start: date, end: date
-) -> pd.DataFrame:
+def fetch_historical_intraday_range(symbol: str, start: date, end: date) -> pd.DataFrame:
     """Hämta intradag-data över ett intervall via yfinance (1min / 5min).
 
     Yahoo Finance tillhandahåller minut-data i begränsade fönster.
     Vi itererar per dag och skippar dagar utan data (helger etc).
     """
-    all_frames: List[pd.DataFrame] = []
+    all_frames: list[pd.DataFrame] = []
     current = start
     while current <= end:
         try:
@@ -140,9 +137,7 @@ def fetch_historical_intraday_range(
             pass  # Ingen data för den dagen (helg, framtida datum, långhelg)
         current += timedelta(days=1)
     if not all_frames:
-        raise ValueError(
-            f"No intraday data found for {symbol} in range {start} to {end}"
-        )
+        raise ValueError(f"No intraday data found for {symbol} in range {start} to {end}")
     return pd.concat(all_frames, ignore_index=True)
 
 
@@ -161,18 +156,14 @@ def est_to_utc(dt: datetime) -> datetime:
     return dt
 
 
-def get_price_at_time(
-    intraday_df: pd.DataFrame, target_hour: int, target_minute: int
-) -> Optional[float]:
+def get_price_at_time(intraday_df: pd.DataFrame, target_hour: int, target_minute: int) -> float | None:
     """Hämta pris vid specifik tid från intradag-data.
 
     Returnerar Close-priset för den första minuten ≥ target_time.
     """
     target = target_hour * 60 + target_minute
     intraday_df = intraday_df.copy()
-    intraday_df["minute_of_day"] = (
-        intraday_df["Datetime"].dt.hour * 60 + intraday_df["Datetime"].dt.minute
-    )
+    intraday_df["minute_of_day"] = intraday_df["Datetime"].dt.hour * 60 + intraday_df["Datetime"].dt.minute
     # Hitta första raden >= target
     candidates = intraday_df[intraday_df["minute_of_day"] >= target]
     if candidates.empty:
@@ -180,14 +171,14 @@ def get_price_at_time(
     return float(candidates.iloc[0]["Close"])
 
 
-def get_open_price(intraday_df: pd.DataFrame) -> Optional[float]:
+def get_open_price(intraday_df: pd.DataFrame) -> float | None:
     """Hämta öppningspris från intradag-data."""
     if intraday_df.empty:
         return None
     return float(intraday_df.iloc[0]["Open"])
 
 
-def get_close_price(intraday_df: pd.DataFrame) -> Optional[float]:
+def get_close_price(intraday_df: pd.DataFrame) -> float | None:
     """Hämta stängningspris från intradag-data (sista Close)."""
     if intraday_df.empty:
         return None
@@ -248,7 +239,7 @@ def evaluate_condition(open_price: float, price_at_eval: float, condition: str) 
     return "hit" if change_pct > 0 else "miss"
 
 
-def build_triggers_for_date(target_date: date, symbols: List[str]) -> List[Dict]:
+def build_triggers_for_date(target_date: date, symbols: list[str]) -> list[dict]:
     """Bygg trigger-definitioner för en specifik dag.
 
     Spegelar create_triggers() i trigger_system_v1.py.
@@ -326,11 +317,11 @@ def build_triggers_for_date(target_date: date, symbols: List[str]) -> List[Dict]
 
 def simulate_day(
     symbol: str,
-    trigger: Dict,
+    trigger: dict,
     target_date: date,
-    intraday_df: Optional[pd.DataFrame],
-    daily_row: Optional[pd.Series],
-) -> Optional[Dict]:
+    intraday_df: pd.DataFrame | None,
+    daily_row: pd.Series | None,
+) -> dict | None:
     """Simulera en trigger för en specifik dag.
 
     Returnerar resultat-dict eller None om data saknas.
@@ -356,9 +347,7 @@ def simulate_day(
 
         if eval_time == "1h":
             if intraday_df is not None and not intraday_df.empty:
-                price_at_eval = get_price_at_time(
-                    intraday_df, EST_1H_HOUR, EST_1H_MINUTE
-                )
+                price_at_eval = get_price_at_time(intraday_df, EST_1H_HOUR, EST_1H_MINUTE)
             else:
                 # Approximera från OHLC: använd Open + (High-Low)*0.25
                 if daily_row is not None:
@@ -367,9 +356,7 @@ def simulate_day(
                     price_at_eval = open_price + (high - low) * 0.25
         elif eval_time == "2h":
             if intraday_df is not None and not intraday_df.empty:
-                price_at_eval = get_price_at_time(
-                    intraday_df, EST_2H_HOUR, EST_2H_MINUTE
-                )
+                price_at_eval = get_price_at_time(intraday_df, EST_2H_HOUR, EST_2H_MINUTE)
             else:
                 if daily_row is not None:
                     high = float(daily_row["High"])
@@ -401,9 +388,7 @@ def simulate_day(
     return results if results else None
 
 
-def load_actual_evaluations(
-    symbol: str, target_dates: List[str]
-) -> Dict[Tuple[str, str], Dict]:
+def load_actual_evaluations(symbol: str, target_dates: list[str]) -> dict[tuple[str, str], dict]:
     """Ladda faktiska utvärderingar från evaluations-tabellen.
 
     Returnerar dict med nyckel (target_date, evaluation_time).
@@ -424,7 +409,7 @@ def load_actual_evaluations(
     rows = c.fetchall()
     conn.close()
 
-    actuals: Dict[Tuple[str, str], Dict] = {}
+    actuals: dict[tuple[str, str], dict] = {}
     for row in rows:
         sym, trig_type, eval_time, price, open_p, result = row
         key = (sym, eval_time)
@@ -440,16 +425,16 @@ def load_actual_evaluations(
 
 
 def run_backtest(
-    symbols: List[str],
+    symbols: list[str],
     start_date: date,
     end_date: date,
-) -> Tuple[List[Dict], Dict]:
+) -> tuple[list[dict], dict]:
     """Kör backtesting för angivna symboler och datumintervall.
 
     Returnerar (lista med resultat-rader, summerings-dict).
     """
-    all_results: List[Dict] = []
-    summary: Dict = {}
+    all_results: list[dict] = []
+    summary: dict = {}
 
     total_days = (end_date - start_date).days + 1
     trading_days = 0
@@ -467,20 +452,15 @@ def run_backtest(
             continue
 
         # Försök hämta intradag-data för hela intervallet
-        intraday_df: Optional[pd.DataFrame] = None
+        intraday_df: pd.DataFrame | None = None
         try:
             intraday_df = fetch_historical_intraday_range(symbol, start_date, end_date)
         except ValueError:
-            print(
-                f"   ⚠️  Intradag-data saknas för {symbol}, använder OHLC-approximation"
-            )
+            print(f"   ⚠️  Intradag-data saknas för {symbol}, använder OHLC-approximation")
             intraday_df = None
 
         # Ladda faktiska utvärderingar
-        target_dates = [
-            (start_date + timedelta(days=i)).strftime("%Y-%m-%d")
-            for i in range(total_days)
-        ]
+        target_dates = [(start_date + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(total_days)]
         actuals = load_actual_evaluations(symbol, target_dates)
 
         symbol_results = []
@@ -502,9 +482,7 @@ def run_backtest(
                     if day_intraday.empty:
                         day_intraday = None
 
-                sim_results = simulate_day(
-                    symbol, trigger, target_date, day_intraday, daily_row
-                )
+                sim_results = simulate_day(symbol, trigger, target_date, day_intraday, daily_row)
                 if sim_results:
                     for res in sim_results:
                         # Jämför med faktiska resultat om de finns
@@ -515,9 +493,7 @@ def run_backtest(
                             res["actual_price"] = actual["price_at_eval"]
                             if actual["open_price"] and actual["price_at_eval"]:
                                 res["actual_change_pct"] = round(
-                                    (actual["price_at_eval"] - actual["open_price"])
-                                    / actual["open_price"]
-                                    * 100,
+                                    (actual["price_at_eval"] - actual["open_price"]) / actual["open_price"] * 100,
                                     2,
                                 )
                             else:
@@ -534,9 +510,7 @@ def run_backtest(
                         elif res["result"] == "miss":
                             symbol_misses += 1
 
-        hit_rate = (
-            round(symbol_hits / symbol_evals * 100, 1) if symbol_evals > 0 else 0.0
-        )
+        hit_rate = round(symbol_hits / symbol_evals * 100, 1) if symbol_evals > 0 else 0.0
         summary[symbol] = {
             "triggers": symbol_evals,
             "hits": symbol_hits,
@@ -600,7 +574,7 @@ def _infer_direction_from_trigger_type(trigger_type: str, condition: str) -> str
 # === DATABAS-PERSISTENS ===
 
 
-def add_sector_analysis(results: List[Dict]) -> List[Dict]:
+def add_sector_analysis(results: list[dict]) -> list[dict]:
     """Berika backtest-resultat med sektoranalys.
 
     För varje resultat:
@@ -609,8 +583,8 @@ def add_sector_analysis(results: List[Dict]) -> List[Dict]:
     - Hämta ETF-data för target_date
     - Utvärdera sektorkorrelation
     """
-    enriched: List[Dict] = []
-    sector_cache: Dict[Tuple[str, str], Optional[Dict]] = {}
+    enriched: list[dict] = []
+    sector_cache: dict[tuple[str, str], dict | None] = {}
 
     for res in results:
         symbol = res["symbol"]
@@ -630,7 +604,7 @@ def add_sector_analysis(results: List[Dict]) -> List[Dict]:
         etf = get_sector_etf(symbol)
 
         # Hämta sektordata (med caching)
-        sector_data: Optional[Dict] = None
+        sector_data: dict | None = None
         if etf and target_date:
             cache_key = (etf, target_date)
             if cache_key not in sector_cache:
@@ -641,12 +615,10 @@ def add_sector_analysis(results: List[Dict]) -> List[Dict]:
 
         # Utvärdera korrelation
         sector_correlated = False
-        sector_change_percent: Optional[float] = None
+        sector_change_percent: float | None = None
         if sector_data and direction in ("bullish", "bearish"):
             sector_change_percent = sector_data.get("change_percent", 0.0)
-            sector_correlated = evaluate_sector_correlation(
-                trigger_result, direction, sector_change_percent
-            )
+            sector_correlated = evaluate_sector_correlation(trigger_result, direction, sector_change_percent)
 
         enriched_res = dict(res)
         enriched_res["direction"] = direction
@@ -659,15 +631,12 @@ def add_sector_analysis(results: List[Dict]) -> List[Dict]:
     correlated = sum(1 for r in enriched if r.get("sector_correlated"))
     if total_with_sector > 0:
         accuracy = correlated / total_with_sector * 100
-        print(
-            f"   📈 Sektoranalys: {total_with_sector} med sektordata, "
-            f"{correlated} korrekta ({accuracy:.1f}%)"
-        )
+        print(f"   📈 Sektoranalys: {total_with_sector} med sektordata, {correlated} korrekta ({accuracy:.1f}%)")
 
     return enriched
 
 
-def save_backtest_results(results: List[Dict]) -> None:
+def save_backtest_results(results: list[dict]) -> None:
     """Spara backtest-resultat och sektoranalys till databasen."""
     conn = get_db_connection()
     c = conn.cursor()
@@ -724,9 +693,7 @@ def save_backtest_results(results: List[Dict]) -> None:
 # === MARKDOWN-EXPORT ===
 
 
-def export_markdown(
-    results: List[Dict], summary: Dict, start_date: date, end_date: date
-) -> str:
+def export_markdown(results: list[dict], summary: dict, start_date: date, end_date: date) -> str:
     """Exportera backtest-resultat som markdown.
 
     Returnerar filnamn.
@@ -737,7 +704,7 @@ def export_markdown(
         f"backtest_report_{datetime.now().strftime('%Y-%m-%d')}.md",
     )
 
-    lines: List[str] = []
+    lines: list[str] = []
     lines.append("# 📊 Backtest-rapport — Trading Triggers")
     lines.append("")
     lines.append(f"**Period:** {start_date} till {end_date}")
@@ -747,12 +714,8 @@ def export_markdown(
     # Summering per aktie
     lines.append("## Summering per aktie")
     lines.append("")
-    lines.append(
-        "| Aktie | Antal triggers | Träff | Miss | Träffsäkerhet | Handelsdagar |"
-    )
-    lines.append(
-        "|-------|---------------|-------|------|---------------|-------------|"
-    )
+    lines.append("| Aktie | Antal triggers | Träff | Miss | Träffsäkerhet | Handelsdagar |")
+    lines.append("|-------|---------------|-------|------|---------------|-------------|")
     for symbol, stats in summary.items():
         lines.append(
             f"| {symbol} | {stats['triggers']} | {stats['hits']} | {stats['misses']} | "
@@ -770,11 +733,7 @@ def export_markdown(
 
         total_with_sector = len(sector_results)
         sector_correlated = sum(1 for r in sector_results if r.get("sector_correlated"))
-        sector_accuracy = (
-            round(sector_correlated / total_with_sector * 100, 1)
-            if total_with_sector > 0
-            else 0.0
-        )
+        sector_accuracy = round(sector_correlated / total_with_sector * 100, 1) if total_with_sector > 0 else 0.0
 
         lines.append(
             f"**Totalt:** {total_with_sector} med sektordata, "
@@ -783,7 +742,7 @@ def export_markdown(
         lines.append("")
 
         # Per sektor
-        per_etf: Dict[str, List[Dict]] = {}
+        per_etf: dict[str, list[dict]] = {}
         for r in sector_results:
             etf = r.get("sector_etf", "")
             if etf:
@@ -796,12 +755,8 @@ def export_markdown(
         for etf, etf_results in sorted(per_etf.items()):
             etf_total = len(etf_results)
             etf_correlated = sum(1 for r in etf_results if r.get("sector_correlated"))
-            etf_accuracy = (
-                round(etf_correlated / etf_total * 100, 1) if etf_total > 0 else 0.0
-            )
-            lines.append(
-                f"| {etf} | {etf_total} | {etf_correlated} | {etf_accuracy}% |"
-            )
+            etf_accuracy = round(etf_correlated / etf_total * 100, 1) if etf_total > 0 else 0.0
+            lines.append(f"| {etf} | {etf_total} | {etf_correlated} | {etf_accuracy}% |")
         lines.append("")
 
         # Per riktning
@@ -814,30 +769,20 @@ def export_markdown(
             bull_total = len(bullish_results)
             bull_corr = sum(1 for r in bullish_results if r.get("sector_correlated"))
             bull_acc = round(bull_corr / bull_total * 100, 1) if bull_total > 0 else 0.0
-            lines.append(
-                f"- **Bullish:** {bull_total} triggers, {bull_corr} korrekta ({bull_acc}%)"
-            )
+            lines.append(f"- **Bullish:** {bull_total} triggers, {bull_corr} korrekta ({bull_acc}%)")
         if bearish_results:
             bear_total = len(bearish_results)
             bear_corr = sum(1 for r in bearish_results if r.get("sector_correlated"))
             bear_acc = round(bear_corr / bear_total * 100, 1) if bear_total > 0 else 0.0
-            lines.append(
-                f"- **Bearish:** {bear_total} triggers, {bear_corr} korrekta ({bear_acc}%)"
-            )
+            lines.append(f"- **Bearish:** {bear_total} triggers, {bear_corr} korrekta ({bear_acc}%)")
         lines.append("")
 
         # Detaljerad sektortabell
         lines.append("### Detaljerad sektorkorrelation")
         lines.append("")
-        lines.append(
-            "| Datum | Aktie | Riktning | Sektor | Sektorförändring | Korrekt |"
-        )
-        lines.append(
-            "|-------|-------|----------|--------|------------------|----------|"
-        )
-        for res in sorted(
-            sector_results, key=lambda r: (r["target_date"], r["symbol"])
-        ):
+        lines.append("| Datum | Aktie | Riktning | Sektor | Sektorförändring | Korrekt |")
+        lines.append("|-------|-------|----------|--------|------------------|----------|")
+        for res in sorted(sector_results, key=lambda r: (r["target_date"], r["symbol"])):
             corr_icon = "✅" if res.get("sector_correlated") else "❌"
             sector_chg = res.get("sector_change_percent")
             sector_chg_str = f"{sector_chg:+.2f}%" if sector_chg is not None else "—"
@@ -851,35 +796,24 @@ def export_markdown(
     total_triggers = sum(s["triggers"] for s in summary.values())
     total_hits = sum(s["hits"] for s in summary.values())
     total_misses = sum(s["misses"] for s in summary.values())
-    total_rate = (
-        round(total_hits / total_triggers * 100, 1) if total_triggers > 0 else 0.0
-    )
+    total_rate = round(total_hits / total_triggers * 100, 1) if total_triggers > 0 else 0.0
     lines.append(
-        f"**Totalt:** {total_triggers} triggers, {total_hits} träff, {total_misses} miss (**{total_rate}%** träffsäkerhet)"
+        f"**Totalt:** {total_triggers} triggers, {total_hits} träff, "
+        f"{total_misses} miss (**{total_rate}%** träffsäkerhet)"
     )
     lines.append("")
 
     # Detaljerad tabell per dag
     lines.append("## Detaljerade resultat per dag")
     lines.append("")
-    lines.append(
-        "| Datum | Aktie | Trigger | Tid | Öppning | Pris | Förändring | Resultat | Faktiskt |"
-    )
-    lines.append(
-        "|-------|-------|---------|-----|---------|------|------------|----------|----------|"
-    )
+    lines.append("| Datum | Aktie | Trigger | Tid | Öppning | Pris | Förändring | Resultat | Faktiskt |")
+    lines.append("|-------|-------|---------|-----|---------|------|------------|----------|----------|")
 
     # Sortera efter datum
-    sorted_results = sorted(
-        results, key=lambda r: (r["target_date"], r["symbol"], r["evaluation_time"])
-    )
+    sorted_results = sorted(results, key=lambda r: (r["target_date"], r["symbol"], r["evaluation_time"]))
     for res in sorted_results:
         emoji = "✅" if res["result"] == "hit" else "❌"
-        actual = (
-            f"{res['actual_result']} (${res['actual_price']})"
-            if res.get("actual_result")
-            else "—"
-        )
+        actual = f"{res['actual_result']} (${res['actual_price']})" if res.get("actual_result") else "—"
         change_str = f"{res['change_pct']:+.2f}%"
         lines.append(
             f"| {res['target_date']} | {res['symbol']} | {res['trigger_type']} | "
@@ -901,8 +835,7 @@ def export_markdown(
             else:
                 mismatches += 1
         lines.append(
-            f"- Överensstämmelse: {matches}/{len(actual_matches)} "
-            f"({round(matches / len(actual_matches) * 100, 1)}%)"
+            f"- Överensstämmelse: {matches}/{len(actual_matches)} ({round(matches / len(actual_matches) * 100, 1)}%)"
         )
         lines.append(f"- Avvikelser: {mismatches}")
         lines.append("")
@@ -919,9 +852,7 @@ def export_markdown(
                     )
             lines.append("")
     else:
-        lines.append(
-            "*Inga faktiska utvärderingar hittades i databasen för denna period.*"
-        )
+        lines.append("*Inga faktiska utvärderingar hittades i databasen för denna period.*")
         lines.append("")
 
     lines.append("---")
@@ -938,9 +869,7 @@ def export_markdown(
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Backtesting-motor för Trading Triggers"
-    )
+    parser = argparse.ArgumentParser(description="Backtesting-motor för Trading Triggers")
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--days", type=int, help="Antal dagar bakåt att backtesta")
     group.add_argument(
@@ -966,7 +895,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def resolve_dates(args: argparse.Namespace) -> Tuple[date, date]:
+def resolve_dates(args: argparse.Namespace) -> tuple[date, date]:
     """Tolka datum-argument till start och end."""
     if args.days is not None:
         end = date.today()

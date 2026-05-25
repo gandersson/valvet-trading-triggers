@@ -5,26 +5,21 @@ import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 # Ensure the project src is on the path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from sector_analysis import (
     _count_keywords,
-    extract_direction,
-    get_sector_etf,
-    fetch_sector_data,
     evaluate_sector_correlation,
-    BULLISH_KEYWORDS,
-    BEARISH_KEYWORDS,
-    SECTOR_MAP,
+    extract_direction,
+    fetch_sector_data,
+    get_sector_etf,
 )
-
 
 # =============================================================================
 # Keyword counting (via extract_direction)
 # =============================================================================
+
 
 class TestCountKeywords:
     """Verify that keyword counting works via extract_direction."""
@@ -47,6 +42,7 @@ class TestCountKeywords:
 # =============================================================================
 # extract_direction
 # =============================================================================
+
 
 class TestExtractDirection:
     """Tests for extract_direction — bullish/bearish/neutral classification."""
@@ -83,6 +79,7 @@ class TestExtractDirection:
 # get_sector_etf
 # =============================================================================
 
+
 class TestGetSectorEtf:
     """Tests for get_sector_etf — symbol-to-ETF mapping."""
 
@@ -106,6 +103,7 @@ class TestGetSectorEtf:
 # fetch_sector_data (mocked yfinance)
 # =============================================================================
 
+
 class TestFetchSectorData:
     """Tests for fetch_sector_data with mocked yfinance."""
 
@@ -118,13 +116,16 @@ class TestFetchSectorData:
         mock_ticker.info = {}
 
         dates = pd.date_range("2026-05-21", periods=3, freq="D")
-        hist = pd.DataFrame({
-            "Open": [100.0, 101.0, 102.0],
-            "High": [102.0, 103.0, 104.0],
-            "Low": [99.0, 100.0, 101.0],
-            "Close": [100.0, 101.5, 102.5],
-            "Volume": [1000000, 1100000, 1200000],
-        }, index=dates)
+        hist = pd.DataFrame(
+            {
+                "Open": [100.0, 101.0, 102.0],
+                "High": [102.0, 103.0, 104.0],
+                "Low": [99.0, 100.0, 101.0],
+                "Close": [100.0, 101.5, 102.5],
+                "Volume": [1000000, 1100000, 1200000],
+            },
+            index=dates,
+        )
         # After reset_index(), column should be named "Date" (not "index")
         hist.index.name = "Date"
         mock_ticker.history.return_value = hist
@@ -154,6 +155,7 @@ class TestFetchSectorData:
 # =============================================================================
 # evaluate_sector_correlation
 # =============================================================================
+
 
 class TestEvaluateCorrelation:
     """Tests for evaluate_sector_correlation — trigger vs sector movement alignment."""
@@ -187,6 +189,7 @@ class TestEvaluateCorrelation:
 # Speed gate (< 5 s total)
 # =============================================================================
 
+
 def test_total_runtime_under_five_seconds():
     """All tests above should complete within 5 seconds total.
     This meta-test captures the suite runtime for reporting."""
@@ -195,7 +198,9 @@ def test_total_runtime_under_five_seconds():
     start = time.perf_counter()
     # Re-import to simulate fresh load
     import importlib
+
     import sector_analysis as sa
+
     importlib.reload(sa)
     elapsed = time.perf_counter() - start
     assert elapsed < 1.0  # Module reload < 1 s (smoke check)

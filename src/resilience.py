@@ -6,21 +6,26 @@ for Discord webhook notifications.
 """
 
 import logging
-from datetime import datetime, UTC
-from typing import Any, Callable, TypeVar
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import Any, TypeVar
 
 from tenacity import (
-    retry as tenacity_retry,
+    before_sleep_log,
     retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
-    before_sleep_log,
+)
+from tenacity import (
+    retry as tenacity_retry,
 )
 
 
 class CircuitBreakerOpen(Exception):
     """Raised when the circuit breaker is open and a call is blocked."""
+
     pass
+
 
 logger = logging.getLogger(__name__)
 

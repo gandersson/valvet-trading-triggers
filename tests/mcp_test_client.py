@@ -117,16 +117,19 @@ async def run_tests():
 
     # ── 2. Initialize ─────────────────────────────────────────────────────────
     print("\n[2/9] Sending initialize request...")
-    await _send_request(proc.stdin, {
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "initialize",
-        "params": {
-            "protocolVersion": "2024-11-05",
-            "capabilities": {},
-            "clientInfo": {"name": "mcp-test-client", "version": "1.0.0"},
+    await _send_request(
+        proc.stdin,
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {"name": "mcp-test-client", "version": "1.0.0"},
+            },
         },
-    })
+    )
     init_resp = await _read_response(proc.stdout)
     if "error" in init_resp:
         print(f"  ✗ FAIL: {init_resp['error']}")
@@ -136,20 +139,26 @@ async def run_tests():
     print(f"  ✓ Connected to {server_info['name']} v{server_info['version']}")
 
     # notifications/initialized
-    await _send_request(proc.stdin, {
-        "jsonrpc": "2.0",
-        "method": "notifications/initialized",
-        "params": {},
-    })
+    await _send_request(
+        proc.stdin,
+        {
+            "jsonrpc": "2.0",
+            "method": "notifications/initialized",
+            "params": {},
+        },
+    )
 
     # ── 3. List tools ───────────────────────────────────────────────────────
     print("\n[3/9] Listing tools...")
-    await _send_request(proc.stdin, {
-        "jsonrpc": "2.0",
-        "id": 2,
-        "method": "tools/list",
-        "params": {},
-    })
+    await _send_request(
+        proc.stdin,
+        {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/list",
+            "params": {},
+        },
+    )
     tools_resp = await _read_response(proc.stdout)
     tools = tools_resp["result"]["tools"]
     print(f"  ✓ {len(tools)} tools registered:")
@@ -179,7 +188,11 @@ async def run_tests():
         ("get_todays_triggers", {"symbol": "AAPL"}, "Listing today's triggers (AAPL)"),
         ("get_market_summary", {"symbol": "AAPL"}, "Market summary for AAPL"),
         ("add_stock", {"symbol": "MSFT", "trigger_type": "Open_Above", "condition": "price > open"}, "Adding MSFT"),
-        ("evaluate_trigger", {"symbol": "AAPL", "trigger_type": "Open_Above", "current_price": 185.0, "open_price": 180.0}, "Evaluating AAPL trigger"),
+        (
+            "evaluate_trigger",
+            {"symbol": "AAPL", "trigger_type": "Open_Above", "current_price": 185.0, "open_price": 180.0},
+            "Evaluating AAPL trigger",
+        ),
         ("get_historical_accuracy", {"days": 30}, "Historical accuracy (30 days)"),
         ("get_trigger_stats", {"symbol": "AAPL"}, "Trigger stats for AAPL"),
         ("remove_stock", {"symbol": "MSFT"}, "Removing MSFT"),
@@ -188,12 +201,15 @@ async def run_tests():
 
     for idx, (tool_name, params, label) in enumerate(tool_calls, start=4):
         print(f"\n[{idx}/9] {label} ({tool_name})...")
-        await _send_request(proc.stdin, {
-            "jsonrpc": "2.0",
-            "id": idx,
-            "method": "tools/call",
-            "params": {"name": tool_name, "arguments": params},
-        })
+        await _send_request(
+            proc.stdin,
+            {
+                "jsonrpc": "2.0",
+                "id": idx,
+                "method": "tools/call",
+                "params": {"name": tool_name, "arguments": params},
+            },
+        )
         resp = await _read_response(proc.stdout)
         if "error" in resp:
             print(f"  ✗ FAIL: {resp['error']}")

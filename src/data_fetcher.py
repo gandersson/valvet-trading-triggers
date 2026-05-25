@@ -13,7 +13,6 @@ import logging
 import re
 import subprocess
 from datetime import datetime
-from typing import Dict, Optional
 
 import yfinance as yf
 from tenacity import RetryError
@@ -25,7 +24,7 @@ logger = logging.getLogger(__name__)
 # Map of short symbols to Yahoo Finance tickers that require exchange suffixes.
 # These are passed to yfinance instead of the bare symbol.
 # Example: OVH is listed on Euronext Paris, so yfinance needs "OVH.PA".
-YAHOO_TICKER_MAP: Dict[str, str] = {
+YAHOO_TICKER_MAP: dict[str, str] = {
     "OVH": "OVH.PA",  # Euronext Paris
 }
 
@@ -36,10 +35,10 @@ AVANZA_FALLBACK_SYMBOLS: set[str] = set()
 
 # Avanza URL template for fallback symbols
 # Format: https://www.avanza.se/aktier/om-aktien.html/{avanza_id}/{slug}
-AVANZA_URLS: Dict[str, str] = {}
+AVANZA_URLS: dict[str, str] = {}
 
 
-def _parse_avanza_price(text: str) -> Optional[float]:
+def _parse_avanza_price(text: str) -> float | None:
     """Extract a price value from Swedish-formatted text.
 
     Handles both comma and dot as decimal separator.
@@ -64,7 +63,7 @@ def _parse_avanza_price(text: str) -> Optional[float]:
     return None
 
 
-def _parse_avanza_change(text: str) -> Optional[float]:
+def _parse_avanza_change(text: str) -> float | None:
     """Extract percentage change from text like '0,00% (0,00)' or '+1,29%'.
 
     Returns the absolute change in percentage points.
@@ -125,16 +124,16 @@ def _run_agent_browser(url: str) -> str:
 
     except subprocess.TimeoutExpired:
         logger.error("agent-browser timed out fetching %s", url)
-        raise RuntimeError(f"Browser timeout fetching {url}")
+        raise RuntimeError(f"Browser timeout fetching {url}") from None
     except subprocess.CalledProcessError as e:
         logger.error("agent-browser failed: %s", e)
-        raise RuntimeError(f"Browser error: {e}")
+        raise RuntimeError(f"Browser error: {e}") from e
     except FileNotFoundError:
         logger.error("agent-browser not found in PATH")
-        raise RuntimeError("agent-browser CLI not installed")
+        raise RuntimeError("agent-browser CLI not installed") from None
 
 
-def fetch_avanza_data(symbol: str) -> Dict:
+def fetch_avanza_data(symbol: str) -> dict:
     """Fetch stock data from Avanza by scraping the stock page.
 
     Uses agent-browser for headless browser automation to handle
@@ -153,8 +152,7 @@ def fetch_avanza_data(symbol: str) -> Dict:
     symbol = symbol.upper()
     if symbol not in AVANZA_FALLBACK_SYMBOLS:
         raise ValueError(
-            f"Symbol {symbol} is not configured for Avanza fallback. "
-            f"Supported: {sorted(AVANZA_FALLBACK_SYMBOLS)}"
+            f"Symbol {symbol} is not configured for Avanza fallback. Supported: {sorted(AVANZA_FALLBACK_SYMBOLS)}"
         )
 
     url = AVANZA_URLS.get(symbol)
@@ -185,7 +183,9 @@ def fetch_avanza_data(symbol: str) -> Dict:
             data["low"] = round(price * 0.99, 2)
             logger.warning(
                 "Estimated high/low for %s (price=%s, change=%s%%)",
-                symbol, price, data["change_pct"],
+                symbol,
+                price,
+                data["change_pct"],
             )
 
     # Ensure volume has a value
@@ -194,13 +194,16 @@ def fetch_avanza_data(symbol: str) -> Dict:
 
     logger.info(
         "Avanza data for %s: price=%s, change=%s%%, high=%s, low=%s",
-        symbol, data["price"], data.get("change_pct", "N/A"),
-        data.get("high", "N/A"), data.get("low", "N/A"),
+        symbol,
+        data["price"],
+        data.get("change_pct", "N/A"),
+        data.get("high", "N/A"),
+        data.get("low", "N/A"),
     )
     return data
 
 
-def _parse_avanza_html(html: str, symbol: str) -> Dict:
+def _parse_avanza_html(html: str, symbol: str) -> dict:
     """Parse Avanza HTML and extract stock data.
 
     Extracts:
@@ -360,7 +363,7 @@ def _parse_avanza_html(html: str, symbol: str) -> Dict:
 
 
 @retry_yfinance
-def _fetch_yahoo_data(symbol: str) -> Dict:
+def _fetch_yahoo_data(symbol: str) -> dict:
     """Internal wrapper for Yahoo Finance data fetching.
 
     Applies YAHOO_TICKER_MAP to resolve exchange-specific tickers.
@@ -383,9 +386,7 @@ def _fetch_yahoo_data(symbol: str) -> Dict:
         "high": round(hist["High"].max(), 2),
         "low": round(hist["Low"].min(), 2),
         "volume": int(latest["Volume"]),
-        "change_pct": round(
-            (latest["Close"] - opening["Open"]) / opening["Open"] * 100, 2
-        ),
+        "change_pct": round((latest["Close"] - opening["Open"]) / opening["Open"] * 100, 2),
         "timestamp": latest.name.strftime("%Y-%m-%d %H:%M:%S"),
         "source": "yahoo",
     }
@@ -398,7 +399,7 @@ def _fetch_yahoo_data(symbol: str) -> Dict:
     return data
 
 
-def fetch_stock_data_yahoo(symbol: str) -> Dict:
+def fetch_stock_data_yahoo(symbol: str) -> dict:
     """Fetch stock data from Yahoo Finance.
 
     Applies ticker mapping for exchange-specific symbols automatically.
@@ -410,7 +411,7 @@ def fetch_stock_data_yahoo(symbol: str) -> Dict:
     return _fetch_yahoo_data(symbol)
 
 
-def fetch_stock_data_with_fallback(symbol: str) -> Dict:
+def fetch_stock_data_with_fallback(symbol: str) -> dict:
     """Fetch stock data with automatic fallback to Avanza.
 
     For symbols in AVANZA_FALLBACK_SYMBOLS, tries Yahoo Finance first
@@ -459,14 +460,14 @@ def fetch_stock_data_with_fallback(symbol: str) -> Dict:
     except Exception as e:
         logger.error("Avanza fallback also failed for %s: %s", symbol, e)
         raise RuntimeError(
-            f"Failed to fetch data for {symbol} from all sources. "
-            f"Yahoo error: {yahoo_error}, Avanza error: {e}"
+            f"Failed to fetch data for {symbol} from all sources. Yahoo error: {yahoo_error}, Avanza error: {e}"
         ) from e
 
 
 # === Compatibility with existing code ===
 
-def fetch_stock_data(symbol: str) -> Dict:
+
+def fetch_stock_data(symbol: str) -> dict:
     """Drop-in replacement for trigger_system_v1.fetch_stock_data.
 
     Uses the fallback logic automatically.

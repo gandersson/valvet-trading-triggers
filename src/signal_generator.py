@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Tuple
-
 
 def calculate_confidence_score(
     n1_trigger_accuracy: float,
@@ -61,7 +59,7 @@ def generate_signal(
     direction: str,
     confidence_score: float,
     trigger_result: bool = True,
-) -> Optional[Dict]:
+) -> dict | None:
     """Generera köp- eller sälj-signal baserat på riktning och confidence.
 
     Args:
@@ -109,10 +107,10 @@ def _build_recommendation(signal_type: str, strength: int, symbol: str) -> str:
 
 
 def calculate_hypothetical_pnl(
-    signals: List[Dict],
-    price_data: List[Dict],
+    signals: list[dict],
+    price_data: list[dict],
     holding_period_days: int = 1,
-) -> List[Dict]:
+) -> list[dict]:
     """Beräkna hypotetisk P&L för en lista med signaler.
 
     Args:
@@ -127,7 +125,7 @@ def calculate_hypothetical_pnl(
         return []
 
     # Bygg lookup-dict för prisdata per symbol
-    price_lookup: Dict[str, Dict] = {}
+    price_lookup: dict[str, dict] = {}
     for pd in price_data:
         sym = pd.get("symbol", "").upper()
         if sym:
@@ -170,8 +168,8 @@ def calculate_hypothetical_pnl(
 
 
 def aggregate_signals_by_symbol(
-    signals: List[Dict],
-) -> Dict[str, Dict]:
+    signals: list[dict],
+) -> dict[str, dict]:
     """Aggregera signaler per symbol för sammanfattning.
 
     Args:
@@ -183,7 +181,7 @@ def aggregate_signals_by_symbol(
     if not signals:
         return {}
 
-    aggregated: Dict[str, Dict] = {}
+    aggregated: dict[str, dict] = {}
     for signal in signals:
         if signal is None:
             continue
@@ -208,15 +206,13 @@ def aggregate_signals_by_symbol(
 
         conf = signal.get("confidence_score", 0.0)
         agg["avg_confidence"] = round(
-            (agg["avg_confidence"] * (agg["signal_count"] - 1) + conf)
-            / agg["signal_count"],
+            (agg["avg_confidence"] * (agg["signal_count"] - 1) + conf) / agg["signal_count"],
             4,
         )
 
         strength = signal.get("strength", 0)
         agg["avg_strength"] = round(
-            (agg["avg_strength"] * (agg["signal_count"] - 1) + strength)
-            / agg["signal_count"],
+            (agg["avg_strength"] * (agg["signal_count"] - 1) + strength) / agg["signal_count"],
             2,
         )
 
@@ -229,9 +225,9 @@ def aggregate_signals_by_symbol(
 
 
 def filter_signals_by_strength(
-    signals: List[Dict],
+    signals: list[dict],
     min_strength: int = 3,
-) -> List[Dict]:
+) -> list[dict]:
     """Filtrera signaler baserat på minimum styrka.
 
     Args:
@@ -241,7 +237,4 @@ def filter_signals_by_strength(
     Returns:
         Filtrerad lista med signaler
     """
-    return [
-        s for s in signals
-        if s is not None and s.get("strength", 0) >= min_strength
-    ]
+    return [s for s in signals if s is not None and s.get("strength", 0) >= min_strength]

@@ -1,14 +1,15 @@
 """Tests for resilience utilities — retry and circuit breaker."""
 
 import sys
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from datetime import datetime, timedelta, UTC
 from unittest.mock import patch
 
 # Ensure the project src is on the path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 import pytest
+
 from resilience import CircuitBreaker, discord_circuit_breaker
 
 
@@ -104,6 +105,7 @@ class TestCircuitBreaker:
         # Simulate what happens when trying to call while open
         if not cb.can_execute():
             from resilience import CircuitBreakerOpen
+
             with pytest.raises(Exception) as exc_info:
                 raise CircuitBreakerOpen("Circuit breaker is OPEN")
             assert "OPEN" in str(exc_info.value)
@@ -125,6 +127,7 @@ class TestCircuitBreaker:
             mock_datetime.now.return_value = future_time
             # Re-patch the module's datetime reference
             import resilience
+
             resilience.datetime.now = mock_datetime.now
 
             # After 15 min, should be fully reset / half-open
@@ -165,6 +168,7 @@ class TestCircuitBreaker:
         with patch("resilience.datetime") as mock_datetime:
             mock_datetime.now.return_value = future_time
             import resilience
+
             resilience.datetime.now = mock_datetime.now
 
             assert cb.can_execute() is True
