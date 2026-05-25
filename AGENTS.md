@@ -42,9 +42,15 @@ python src/mcp_server.py
 # REST API + Swagger
 uvicorn api_server:app --reload --app-dir src       # dev mode, http://127.0.0.1:8000/docs
 
+# Chat UI
+# Starta API:et ovan, öppna sedan http://127.0.0.1:8000/chat
+# Interaktivt chattgränssnitt med stöd för svenska kommandon:
+#   utvärdera 1h | triggers | signaler | statistik NVDA | marknad WMT | backtest | hjälp
+
 # Docker
 docker build -t trading-triggers .
 docker run -p 8000:8000 -v $(pwd)/data:/app/data trading-triggers
+# Öppna http://localhost:8000/chat för chattgränssnittet
 ```
 
 ## Architecture
@@ -55,6 +61,7 @@ docker run -p 8000:8000 -v $(pwd)/data:/app/data trading-triggers
 - `src/resilience.py` — retry decorator (`@retry_yfinance`, 3 attempts, exponential backoff) + global `discord_circuit_breaker` singleton.
 - `src/mcp_server.py` — MCP stdio server; imports `mcp` SDK (not pinned in requirements.txt).
 - `src/api_server.py` — FastAPI REST API + Swagger (`/docs`). Wraps all trigger evaluation, signals, stats, market data, backtest, and Obsidian export.
+- `src/static/chat.html` — single-page chattgränssnitt serverat på `/chat`. Vanilla HTML/CSS/JS, anropar REST-endpoints.
 
 ## Key gotchas
 

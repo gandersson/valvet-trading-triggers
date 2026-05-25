@@ -18,6 +18,7 @@
 5. **Rapporterar** till Discord med automatiska sammanfattningar
 6. **Backtestar** strategier mot historisk data
 7. **Exponerar MCP-server** — integrera med AI-assistenter (Claude, Cursor, etc.)
+8. **Chattgränssnitt** — interaktiv chatt på `/chat` med svenska kommandon
 
 ---
 
@@ -68,6 +69,11 @@ python src/trigger_system_v1.py
 
 # Med Discord-notifiering
 ./run_with_webhook.sh
+
+# REST API + Swagger + Chat UI
+uvicorn api_server:app --reload --app-dir src
+# Swagger: http://127.0.0.1:8000/docs
+# Chat:   http://127.0.0.1:8000/chat
 
 # Backtesting
 python src/backtest.py --days 30 --symbols NVDA,WMT,TTWO
@@ -167,6 +173,37 @@ Integrera med Claude, Cursor eller annan AI-assistent:
 - `get_trigger_stats` — Detaljerad statistik per trigger-typ
 - `export_to_obsidian` — Exportera rapport till Obsidian
 
+### Chattgränssnitt (/chat)
+
+Ett interaktivt chattgränssnitt som kompletterar Discord-integrationen. Anropar REST-API:et och visar resultat i chat-bubblor med samma visuella stil som Discord-embeds.
+
+```bash
+# Starta API:et
+uvicorn api_server:app --reload --app-dir src
+
+# Öppna i webbläsaren
+open http://127.0.0.1:8000/chat
+```
+
+**Tillgängliga kommandon:**
+
+| Kommando | Exempel | Beskrivning |
+|----------|---------|-------------|
+| `utvärdera` | `utvärdera 1h` | Kör utvärdering (1h, 2h, EOD) |
+| `triggers` | `triggers` | Visa dagens aktiva triggers |
+| `signaler` | `signaler` | Visa dagens köp-/säljsignaler |
+| `statistik` | `statistik NVDA` | Historisk hit rate + N1/N2-accuracy |
+| `marknad` | `marknad WMT` | Senaste marknadsdata |
+| `backtest` | `backtest NVDA,WMT 30` | Kör backtest (dagar, max 365) |
+| `hjälp` | `hjälp` | Visa kommandolista |
+
+**Snabbknappar** finns överst i gränssnittet för de vanligaste kommandona.
+
+**Teknisk info:**
+- `src/static/chat.html` — fristående HTML-fil (~380 rader), vanilla JS, inga ramverk
+- `GET /chat` — endpoint i `api_server.py` som serverar filen via `FileResponse`
+- Samma emoji/färg/stjärn-formattering som Discord-rapporterna
+
 ---
 
 ## Projektstruktur
@@ -177,9 +214,14 @@ valvet-trading-triggers/
 │   ├── trigger_system_v1.py      # Huvudmotor — triggers, eval, Discord
 │   ├── backtest.py                # Backtesting mot historisk data
 │   ├── sector_analysis.py         # Sektorkorrelation (bullish/bearish)
+│   ├── signal_generator.py        # Signalgenerering (confidence, styrka)
+│   ├── data_fetcher.py            # Yahoo Finance + Avanza-fallback
 │   ├── resilience.py              # Retry + Circuit Breaker
+│   ├── api_server.py              # FastAPI REST API + /chat
 │   ├── mcp_server.py              # MCP-server med 8 tools
-│   └── poc_trigger_system.py      # Proof of Concept
+│   ├── poc_trigger_system.py      # Proof of Concept
+│   └── static/
+│       └── chat.html              # Chattgränssnitt (vanilla HTML/CSS/JS)
 ├── tests/
 │   ├── test_resilience.py         # 8 enhetstester
 │   ├── test_trigger_system_retry.py  # 3 integrationstester
@@ -328,15 +370,14 @@ else:
 - [x] Korrelationslogik (trigger + sektor-rörelse)
 - [x] 23 tester (sector_analysis)
 
-### Nivå 3 — Köp/sälj-signaler 🔄
-- [ ] Confidence score-algoritm
-- [ ] Signalstyrka (1-5)
-- [ ] Discord-signaler
-- [ ] Hypotetisk P&L-backtesting
+### Nivå 3 — Köp/sälj-signaler ✅
+- [x] Confidence score-algoritm
+- [x] Signalstyrka (1-5)
+- [x] Discord-signaler
+- [x] Chattgränssnitt för signaler
 
 ### Kommande
-- [ ] Obsidian-export med automatisk commit/push
-- [ ] Docker-container
+- [ ] Hypotetisk P&L-backtesting
 - [ ] Reservkällor (Alpha Vantage, IEX, Polygon)
 
 ---
@@ -359,6 +400,7 @@ python3 -m pytest tests/test_resilience.py tests/test_trigger_system_retry.py te
 - **yfinance** — Primär datakälla (Yahoo Finance)
 - **tenacity** — Retry-logik
 - **aiohttp** — Discord-webhook
+- **FastAPI + uvicorn** — REST API + chattgränssnitt
 - **mcp** — MCP-server SDK (för AI-integration)
 - **pandas** — Datahantering
 
@@ -370,7 +412,10 @@ python3 -m pytest tests/test_resilience.py tests/test_trigger_system_retry.py te
 A: Nej! Systemet är helt fristående. OpenClaw/MCP-integration är valfri.
 
 **Q: Kan jag använda det utan Discord?**
-A: Ja. Kör `python src/trigger_system_v1.py` istället för `run_with_webhook.sh`.
+A: Ja. Kör `python src/trigger_system_v1.py` istället för `run_with_webhook.sh`, eller starta API:et och använd chattgränssnittet på `/chat`.
+
+**Q: Vad är skillnaden mellan Discord och chattgränssnittet?**
+A: Discord får automatiska push-rapporter vid schemalagda tidpunkter (16:35, 18:35, 23:00). Chattgränssnittet är interaktivt — du ställer frågor och får svar direkt i webbläsaren.
 
 **Q: Var sparas data?**
 A: Allt sparas lokalt i `data/triggers.db` (SQLite). Ingen molnlagring krävs.
