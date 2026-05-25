@@ -23,7 +23,11 @@ Modulen `data_fetcher.py` innehåller en mappningstabell `YAHOO_TICKER_MAP` som
 
 ```python
 YAHOO_TICKER_MAP: Dict[str, str] = {
-    "OVH": "OVH.PA",  # Euronext Paris
+    "OVH": "OVH.PA",       # Euronext Paris
+    "ASML": "ASML.AS",     # Euronext Amsterdam
+    "SAP": "SAP.DE",       # Xetra Frankfurt
+    "ADYEN": "ADYEN.AS",   # Euronext Amsterdam
+    "SIE": "SIE.DE",       # Xetra Frankfurt
 }
 ```
 
@@ -36,6 +40,10 @@ används den mappade tickern för Yahoo Finance-anropet. Returnerad data behåll
 | Symbol | Yahoo Ticker | Börs | Bolag |
 |--------|-------------|------|-------|
 | OVH | OVH.PA | Euronext Paris | OVH Groupe S.A. |
+| ASML | ASML.AS | Euronext Amsterdam | ASML Holding N.V. |
+| SAP | SAP.DE | Xetra Frankfurt | SAP SE |
+| ADYEN | ADYEN.AS | Euronext Amsterdam | Adyen N.V. |
+| SIE | SIE.DE | Xetra Frankfurt | Siemens AG |
 
 ## Lägga till ny mappning
 
@@ -59,18 +67,24 @@ används den mappade tickern för Yahoo Finance-anropet. Returnerad data behåll
 
 4. Uppdatera denna dokumentation.
 
-## Varför inte Avanza?
+## Varför inte Avanza för alla?
 
-Tidigare användes Avanza-webbskrapning som fallback för OVH. Detta ersattes
-eftersom:
+Tidigare användes Avanza-webbskrapning som fallback för OVH. Yahoo Finance med rätt börssuffix visade sig vara tillförlitligare för de flesta europeiska aktier, men vissa symboler (t.ex. **OVH** och **ASML**) har fortfarande intermittent datakvalitet på Yahoo.
 
-- **Yahoo Finance + yfinance är mer tillförlitligt** — ingen skrapning som kan gå sönder
-- **Snabbare** — direkt API-anrop utan headless browser
-- **Mindre komplext** — ingen regex-parsing av HTML
-- **Standardiserat** — samma datakälla som alla andra aktier
+Därför finns en **aktiv fallback-strategi** i `data_fetcher.py`:
 
-Avanza-infrastrukturen finns kvar i koden som reserv om andra symboler
-i framtiden behöver en fallback, men används inte aktivt just nu.
+- **Yahoo Finance primär** — snabbare, standardiserad, samma källa som övriga aktier
+- **Avanza fallback** — för symboler i `AVANZA_FALLBACK_SYMBOLS` vid Yahoo-fel
+
+| Symbol | Yahoo | Avanza fallback |
+|--------|-------|-----------------|
+| OVH | OVH.PA | Ja |
+| ASML | ASML.AS | Ja |
+| SAP | SAP.DE | Nej |
+| ADYEN | ADYEN.AS | Nej |
+| SIE | SIE.DE | Nej |
+
+Avanza-infrastrukturen är konfigurerad och testad för att kunna aktiveras ytterligare om fler symboler får problem.
 
 ## Felsökning
 

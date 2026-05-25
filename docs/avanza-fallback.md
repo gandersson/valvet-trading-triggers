@@ -1,52 +1,97 @@
-# Avanza Fallback — Dokumentation (DEPRECATED)
+# Avanza Fallback
 
-> ⚠️ **Denna fallback är för närvarande INAKTIV.**
-> 
-> OVH hämtas nu direkt från Yahoo Finance via ticker-mappning (`OVH` → `OVH.PA`).
-> Se [yahoo-ticker-mapping.md](yahoo-ticker-mapping.md) för aktuell information.
-> 
-> Avanza-infrastrukturen behålls i koden som reserv för framtida behov.
+## Syfte
+Avanza-fallback är nu en **aktiv del av resiliency-strategin** för utvalda europeiska aktier där Yahoo Finance har intermittent datakvalitet.
+
+Systemet försöker alltid Yahoo Finance först (med rätt börssuffix via `YAHOO_TICKER_MAP`). Om Yahoo misslyckas för en symbol som är markerad som "fallback-värdig", hämtas data istället från Avanza via webbskrapning.
 
 ---
 
-## Historik
+## Aktiva symboler (uppdat 2026-05-25)
 
-Tidigare användes Avanza-webbskrapning som fallback för symboler som inte hade
-data på Yahoo Finance. Den enda symbolen som behövde detta var **OVH** (OVH
-Groupe, noterad på Euronext Paris).
+| Symbol | Börssuffix | Avanza-grund |
+|--------|-----------|-------------|
+| **OVH** | `.PA` (Euronext Paris) | Molntjänster i Europa |
+| **ASML** | `.AS` (Euronext Amsterdam) | Litografimaskiner |
 
-Problemet visade sig vara att Yahoo Finance kräver börs-suffixet `.PA` för
-Euronext Paris-aktier, inte att data saknades helt.
+## Symboler med Yahoo-mappning (ingen aktiv fallback)
 
-## Lösning
+Dessa aktier har börssuffix i `YAHOO_TICKER_MAP`, men Yahoo Finance används direkt utan fallback:
 
-Se [yahoo-ticker-mapping.md](yahoo-ticker-mapping.md) för hur ticker-mappning
-nu hanterar detta via `YAHOO_TICKER_MAP` i `src/data_fetcher.py`.
-
-## Kvarvarande infrastruktur
-
-Följande komponenter finns kvar i `data_fetcher.py` men används inte aktivt:
-
-- `AVANZA_FALLBACK_SYMBOLS` — nu tom `set()`
-- `AVANZA_URLS` — nu tom `dict`
-- `fetch_avanza_data()` — fungerar om konfigurerad
-- `_parse_avanza_html()` — HTML-parser för Avanza
-- `_run_agent_browser()` — browser-automation wrapper
-
-## Återaktivering
-
-Om en symbol i framtiden behöver Avanza-fallback:
-
-1. Lägg till symbolen i `AVANZA_FALLBACK_SYMBOLS`
-2. Lägg till URL i `AVANZA_URLS`
-3. Uppdatera tester i `tests/test_data_fetcher.py`
-4. Uppdatera dokumentationen
+| Symbol | Börssuffix | Sektor |
+|--------|-----------|--------|
+| **SAP** | `.DE` (Xetra Frankfurt) | Enterprise-programvara |
+| **ADYEN** | `.AS` (Euronext Amsterdam) | Betalningar/Fintech |
+| **SIE** | `.DE` (Xetra Frankfurt) | Industri/konglomerat |
 
 ---
 
-## Originaldokumentation
+## Konfiguration
 
-För fullständig teknisk dokumentation av Avanza-parsern (HTML-strukturer,
-regex-mönster, etc.), se historiska versioner av denna fil i git-loggen.
+All konfiguration finns i `src/data_fetcher.py`:
+
+- `YAHOO_TICKER_MAP` — intern symbol → Yahoo ticker med börssuffix
+- `AVANZA_FALLBACK_SYMBOLS` — symboler som får Avanza-reserv vid Yahoo-fel
+- `AVANZA_URLS` — direkta URL:er för varje fallback-symbol
+
+Exempel:
+```python
+YAHOO_TICKER_MAP = {
+    "OVH": "OVH.PA",       # Euronext Paris
+    "ASML": "ASML.AS",     # Euronext Amsterdam
+    "SAP": "SAP.DE",       # Xetra Frankfurt
+    ...
+}
+
+AVANZA_FALLBACK_SYMBOLS = {"OVH", "ASML"}
+
+AVANZA_URLS = {
+    "OVH": "https://www.avanza.se/aktier/om-aktien.html/1326722/ovh-groupe-prom-eo-1",
+    "ASML": "https://www.avanza.se/aktier/om-aktien.html/5320/asml-holding",
+}
+```
+
+---
+
+## Fallback-flöde
+
+```
+symbol i AVANZA_FALLBACK_SYMBOLS?
+├─ NEJ → Yahoo only (med eventuell ticker-mappning)
+└─ JA  → Yahoo first → Avanza vid misslyckande
+              ↓                ↓
+         [success]        [success]
+              ↓                ↓
+         return data       return data
+              ↓                ↓
+         source=yahoo    source=avanza
+```
+
+---
+
+## Risker
+
+- **HTML-förändringar**: Om Avanza ändrar sidstrukturen slutar parsern fungera. Bevakas via tester `test_parse_avanza_html_*`.
+- **Data-inkonsekvens**: Avanza visar inte alltid volym; `volume = 0` används som placeholder. Öpris beräknas ibland bakåt från pris + förändring.
+- **Körtid**: Browser-scraping är långsammare. Fallback bör begränsas till utvalda symboler.
+
+---
+
+## Utöka med nya EU-symboler
+
+1. Verifiera Yahoo-ticker med börssuffix på [finance.yahoo.com](https://finance.yahoo.com/)
+2. Hitta Avanza-URL via sökning på [avanza.se](https://www.avanza.se/)
+3. Lägg till i `YAHOO_TICKER_MAP`, `AVANZA_URLS` (om fallback behövs)
+4. Uppdatera `STOCKS` och `create_triggers` i `trigger_system_v1.py`
+5. Lägg till test i `tests/test_data_fetcher.py` för mapping och/eller fallback
+6. Kör full testsviten för regression
+
+---
+
+## Teknisk referens
+
+- Parser: `_parse_avanza_html()` i `src/data_fetcher.py`
+- Browser: `agent-browser` CLI (headless automation)
+- Retry: `@retry_yfinance` (3 försök, exponentiell backoff) gäller endast Yahoo-sidan
 
 *Senast uppdaterad: 2026-05-25*

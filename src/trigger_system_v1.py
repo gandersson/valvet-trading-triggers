@@ -47,7 +47,7 @@ load_env_file()
 
 # === KONFIGURATION ===
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL", "")
-STOCKS = ["NVDA", "WMT", "TTWO", "WDAY", "ENPH", "OVH"]
+STOCKS = ["NVDA", "WMT", "TTWO", "WDAY", "ENPH", "OVH", "ASML", "SAP", "ADYEN", "SIE"]
 DB_PATH = "data/triggers.db"
 
 
@@ -224,6 +224,10 @@ def create_triggers():
             (today, "WDAY", "Gap_Defense", "rapportgapet försvaras", "premarket_report"),
             (today, "ENPH", "Momentum", "momentum kvar efter uppgradering", "premarket_report"),
             (today, "OVH", "Momentum", "molntjänster accelererar i Europa", "premarket_report"),
+            (today, "ASML", "Momentum", "lithography demand strong", "premarket_report"),
+            (today, "SAP", "Open_Above", "price > open", "premarket_report"),
+            (today, "ADYEN", "Momentum", "payments volume growth", "premarket_report"),
+            (today, "SIE", "Open_Above", "price > open", "premarket_report"),
         ]
 
         for t in triggers:

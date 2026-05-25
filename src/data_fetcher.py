@@ -25,17 +25,24 @@ logger = logging.getLogger(__name__)
 # These are passed to yfinance instead of the bare symbol.
 # Example: OVH is listed on Euronext Paris, so yfinance needs "OVH.PA".
 YAHOO_TICKER_MAP: dict[str, str] = {
-    "OVH": "OVH.PA",  # Euronext Paris
+    "OVH": "OVH.PA",       # Euronext Paris
+    "ASML": "ASML.AS",     # Euronext Amsterdam
+    "SAP": "SAP.DE",       # Xetra Frankfurt
+    "ADYEN": "ADYEN.AS",   # Euronext Amsterdam
+    "SIE": "SIE.DE",       # Xetra Frankfurt
 }
 
 # Symbols that are known to have data quality issues on Yahoo Finance.
 # These will be fetched from Avanza directly if Yahoo Finance fails.
-# Currently empty — OVH now works via YAHOO_TICKER_MAP.
-AVANZA_FALLBACK_SYMBOLS: set[str] = set()
+# Selected subset where Yahoo data can be intermittent.
+AVANZA_FALLBACK_SYMBOLS: set[str] = {"OVH", "ASML"}
 
 # Avanza URL template for fallback symbols
 # Format: https://www.avanza.se/aktier/om-aktien.html/{avanza_id}/{slug}
-AVANZA_URLS: dict[str, str] = {}
+AVANZA_URLS: dict[str, str] = {
+    "OVH": "https://www.avanza.se/aktier/om-aktien.html/1326722/ovh-groupe-prom-eo-1",
+    "ASML": "https://www.avanza.se/aktier/om-aktien.html/5320/asml-holding",
+}
 
 
 def _parse_avanza_price(text: str) -> float | None:
@@ -435,20 +442,28 @@ def fetch_stock_data_with_fallback(symbol: str) -> dict:
         try:
             return fetch_stock_data_yahoo(symbol)
         except (RetryError, ValueError, Exception) as e:
-            logger.error("Yahoo Finance failed for %s: %s", symbol, e)
-            raise RuntimeError(f"Failed to fetch data for {symbol} from Yahoo Finance") from e
+            logger.error(
+                "Yahoo Finance failed for %s (ticker: %s): %s",
+                symbol,
+                YAHOO_TICKER_MAP.get(symbol, symbol),
+                e,
+            )
+            raise RuntimeError(
+                f"Failed to fetch data for {symbol} from Yahoo Finance (ticker: {YAHOO_TICKER_MAP.get(symbol, symbol)})"
+            ) from e
 
     # For fallback symbols: try Yahoo Finance first, then Avanza
     yahoo_error = None
     try:
         data = fetch_stock_data_yahoo(symbol)
-        logger.info("Yahoo Finance succeeded for %s", symbol)
+        logger.info("Yahoo Finance succeeded for %s (fallback symbol)", symbol)
         return data
     except (RetryError, ValueError, Exception) as e:
         yahoo_error = e
         logger.warning(
-            "Yahoo Finance failed for %s (expected for some symbols): %s",
+            "Yahoo Finance failed for %s (ticker: %s), attempting Avanza fallback. Error: %s",
             symbol,
+            YAHOO_TICKER_MAP.get(symbol, symbol),
             e,
         )
 
