@@ -10,12 +10,17 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 import yfinance as yf
 import aiohttp
 
 from resilience import retry_yfinance, discord_circuit_breaker
+from signal_generator import (
+    calculate_confidence_score,
+    map_signal_strength,
+    generate_signal,
+)
 
 # === Ladda .env-fil ===
 def load_env_file():
@@ -107,6 +112,28 @@ def init_db():
             avg_change_miss REAL DEFAULT 0.0,
             last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(symbol, trigger_type)
+        )
+    ''')
+    
+    # Signaler (köp/sälj) från signal_generator
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS signals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT NOT NULL,
+            evaluation_time TEXT NOT NULL,
+            symbol TEXT NOT NULL,
+            trigger_type TEXT NOT NULL,
+            trigger_result TEXT NOT NULL,
+            signal_type TEXT NOT NULL,
+            direction TEXT NOT NULL,
+            strength INTEGER NOT NULL,
+            confidence_score REAL NOT NULL,
+            recommendation TEXT,
+            price_at_eval REAL,
+            open_price REAL,
+            change_pct REAL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(date, evaluation_time, symbol, trigger_type)
         )
     ''')
     
@@ -263,6 +290,179 @@ def update_trigger_stats(symbol: str, trigger_type: str, result: str, change_pct
     finally:
         conn.close()
 
+
+def get_trigger_accuracy(symbol: str, trigger_type: str) -> float:
+    """Hämta N1: trigger-träffsäkerhet (0.0-1.0) från trigger_stats.
+    
+    Returnerar hit_rate / 100, eller 0.5 om ingen data finns.
+    """
+    conn = get_db_connection()
+    c = conn.cursor()
+    try:
+        c.execute('''
+            SELECT hit_rate, total_evaluated, hits, misses
+            FROM trigger_stats
+            WHERE symbol = ? AND trigger_type = ?
+        ''', (symbol, trigger_type))
+        row = c.fetchone()
+        if row is None:
+            return 0.5  # Default: 50% när ingen data finns
+        hit_rate, total, hits, misses = row
+        if total is None or total == 0:
+            return 0.5
+        return round(min(1.0, max(0.0, hit_rate / 100)), 4)
+    finally:
+        conn.close()
+
+
+def get_sector_correlation_accuracy(symbol: str) -> float:
+    """Hämta N2: sektor-korrelationsaccuracy (0.0-1.0).
+    
+    Läser från backtest_sector_analysis. Returnerar 0.5 om ingen data finns.
+    """
+    from sector_analysis import get_sector_etf
+    
+    conn = get_db_connection()
+    c = conn.cursor()
+    try:
+        # Räkna hur ofta sektorkorrelationen var korrekt
+        c.execute('''
+            SELECT COUNT(*) as total,
+                   SUM(CASE WHEN sector_correlated = 1 THEN 1 ELSE 0 END) as correlated
+            FROM backtest_sector_analysis
+            WHERE symbol = ?
+        ''', (symbol,))
+        row = c.fetchone()
+        if row is None or row[0] == 0:
+            return 0.5  # Default: 50% när ingen data finns
+        total, correlated = row
+        if total == 0:
+            return 0.5
+        return round(min(1.0, max(0.0, correlated / total)), 4)
+    finally:
+        conn.close()
+
+
+def get_historical_combined_accuracy(symbol: str) -> float:
+    """Hämta historisk kombinerad accuracy från evaluations.
+    
+    Returnerar andelen "hit" över alla utvärderingar för symbolen.
+    """
+    conn = get_db_connection()
+    c = conn.cursor()
+    try:
+        c.execute('''
+            SELECT COUNT(*) as total,
+                   SUM(CASE WHEN e.result = 'hit' THEN 1 ELSE 0 END) as hits
+            FROM evaluations e
+            JOIN triggers t ON e.trigger_id = t.id
+            WHERE t.symbol = ?
+        ''', (symbol,))
+        row = c.fetchone()
+        if row is None or row[0] == 0:
+            return 0.5  # Default: 50% när ingen data finns
+        total, hits = row
+        if total == 0:
+            return 0.5
+        return round(min(1.0, max(0.0, hits / total)), 4)
+    finally:
+        conn.close()
+
+
+def determine_direction(trigger_type: str, condition: str, result: str) -> str:
+    """Bestäm riktning (bullish/bearish/neutral) för en trigger.
+    
+    Använder sektoranalysens extract_direction som fallback.
+    """
+    # Först: utled från trigger_type
+    trigger_type_lower = trigger_type.lower()
+    bullish_types = {"open_above", "gap_defense", "momentum"}
+    if any(bt in trigger_type_lower for bt in bullish_types):
+        return "bullish"
+    
+    bearish_types = {"open_below", "breakdown", "weakness"}
+    if any(bt in trigger_type_lower for bt in bearish_types):
+        return "bearish"
+    
+    # Fallback: från condition-text
+    from sector_analysis import extract_direction
+    direction = extract_direction(condition)
+    
+    # Om trigger slog igenom (hit) men direction är neutral, gissa bullish för positiva triggers
+    if direction == "neutral" and result == "hit":
+        return "bullish"
+    
+    return direction
+
+
+def save_signal(signal: Dict, date: str, evaluation_time: str, price_data: Dict):
+    """Spara en signal till databasen."""
+    if signal is None:
+        return
+    
+    conn = get_db_connection()
+    c = conn.cursor()
+    try:
+        c.execute('''
+            INSERT OR REPLACE INTO signals
+            (date, evaluation_time, symbol, trigger_type, trigger_result,
+             signal_type, direction, strength, confidence_score, recommendation,
+             price_at_eval, open_price, change_pct)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            date,
+            evaluation_time,
+            signal["symbol"],
+            signal.get("trigger_type", ""),
+            "hit" if signal.get("trigger_result") else "miss",
+            signal["signal"],
+            signal["direction"],
+            signal["strength"],
+            signal["confidence_score"],
+            signal["recommendation"],
+            price_data.get("price"),
+            price_data.get("open"),
+            price_data.get("change_pct"),
+        ))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def generate_signals_for_result(result: Dict, evaluation_time: str) -> Optional[Dict]:
+    """Generera signal för ett specifikt utvärderingsresultat.
+    
+    Beräknar confidence score från N1, N2 och historisk accuracy,
+    genererar köp/sälj-signal om styrka >= 2.
+    """
+    symbol = result["symbol"]
+    trigger_type = result["trigger_type"]
+    trigger_result = result["result"] == "hit"
+    condition = result.get("condition", "")
+    
+    # Bestäm riktning
+    direction = determine_direction(trigger_type, condition, result["result"])
+    
+    if direction not in ("bullish", "bearish"):
+        return None
+    
+    # Beräkna N1, N2 och historisk accuracy
+    n1 = get_trigger_accuracy(symbol, trigger_type)
+    n2 = get_sector_correlation_accuracy(symbol)
+    historical = get_historical_combined_accuracy(symbol)
+    
+    confidence = calculate_confidence_score(n1, n2, historical)
+    
+    # Generera signal (returnerar None om styrka < 2)
+    signal = generate_signal(symbol, direction, confidence, trigger_result=trigger_result)
+    if signal is not None:
+        signal["trigger_type"] = trigger_type
+        signal["n1"] = n1
+        signal["n2"] = n2
+        signal["historical"] = historical
+    
+    return signal
+
 def evaluate_all_triggers(evaluation_time: str = "1h"):
     """Hämta alla aktiva triggers och utvärdera dem"""
     valid_times = {"1h", "2h", "EOD"}
@@ -287,6 +487,8 @@ def evaluate_all_triggers(evaluation_time: str = "1h"):
         conn.close()
     
     results = []
+    signals = []
+    
     for trigger in triggers:
         trigger_id, symbol, trigger_type, condition = trigger
         
@@ -318,23 +520,32 @@ def evaluate_all_triggers(evaluation_time: str = "1h"):
         # Så vi uppdaterar statistik oavsett — det är total_evaluated som gäller
         update_trigger_stats(symbol, trigger_type, result, data["change_pct"])
         
-        results.append({
+        result_dict = {
             "symbol": symbol,
             "trigger_type": trigger_type,
+            "condition": condition,
             "open": data["open"],
             "price": data["price"],
             "change_pct": data["change_pct"],
             "result": result,
             "volume": data["volume"],
             "evaluation_time": evaluation_time
-        })
+        }
+        results.append(result_dict)
+        
+        # Generera signal
+        signal = generate_signals_for_result(result_dict, evaluation_time)
+        if signal is not None:
+            save_signal(signal, today, evaluation_time, result_dict)
+            signals.append(signal)
+            print(f"   🔔 Signal: {signal['recommendation']} (confidence: {signal['confidence_score']})")
         
         print(f"   Resultat: {result} (pris: ${data['price']}, öppning: ${data['open']})")
     
-    return results
+    return results, signals
 
 # === DISCORD ===
-async def send_discord_report(results: List[Dict], evaluation_time: str = "1h"):
+async def send_discord_report(results: List[Dict], evaluation_time: str = "1h", signals: List[Dict] = None):
     """Skicka trigger-rapport till Discord"""
     if not DISCORD_WEBHOOK_URL:
         print("⚠️  Ingen DISCORD_WEBHOOK_URL satt")
@@ -374,6 +585,33 @@ async def send_discord_report(results: List[Dict], evaluation_time: str = "1h"):
         "inline": False
     })
 
+    # Lägg till signaler om det finns några
+    if signals:
+        buy_signals = [s for s in signals if s["signal"] == "buy"]
+        sell_signals = [s for s in signals if s["signal"] == "sell"]
+        
+        if buy_signals:
+            buy_lines = []
+            for s in buy_signals:
+                stars = "⭐" * s["strength"]
+                buy_lines.append(f"🟢 {s['symbol']} {stars} (confidence: {s['confidence_score']:.2f})")
+            fields.append({
+                "name": f"📗 Köpsignaler ({len(buy_signals)})",
+                "value": "\n".join(buy_lines),
+                "inline": False
+            })
+        
+        if sell_signals:
+            sell_lines = []
+            for s in sell_signals:
+                stars = "⭐" * s["strength"]
+                sell_lines.append(f"🔴 {s['symbol']} {stars} (confidence: {s['confidence_score']:.2f})")
+            fields.append({
+                "name": f"📕 Säljsignaler ({len(sell_signals)})",
+                "value": "\n".join(sell_lines),
+                "inline": False
+            })
+
     embed = {
         "title": f"📊 Trigger-rapport: {datetime.now().strftime('%Y-%m-%d')} — {time_label}",
         "color": 0x00FF00 if hits >= misses else 0xFF0000,
@@ -401,7 +639,7 @@ async def send_discord_report(results: List[Dict], evaluation_time: str = "1h"):
             print(f"❌ Discord-anslutningsfel: {exc}")
     
 # === RAPPORTERING ===
-def print_results(results: List[Dict], evaluation_time: str = "1h"):
+def print_results(results: List[Dict], evaluation_time: str = "1h", signals: List[Dict] = None):
     """Skriv ut resultat i terminalen"""
     time_labels = {"1h": "1h-utvärdering", "2h": "2h-utvärdering", "EOD": "EOD-utvärdering"}
     time_label = time_labels.get(evaluation_time, evaluation_time)
@@ -421,6 +659,19 @@ def print_results(results: List[Dict], evaluation_time: str = "1h"):
     hits = sum(1 for r in results if r["result"] == "hit")
     print(f"\n{'='*70}")
     print(f"Sammanfattning: {hits}/{len(results)} träffar ({hits/len(results)*100:.0f}%)")
+    
+    # Skriv ut signaler
+    if signals:
+        print(f"\n{'='*70}")
+        print("📶 SIGNALER")
+        print("="*70)
+        for s in signals:
+            sig_emoji = "🟢" if s["signal"] == "buy" else "🔴"
+            stars = "⭐" * s["strength"]
+            print(f"{sig_emoji} {s['recommendation']} {stars} (confidence: {s['confidence_score']:.4f})")
+            print(f"   N1={s.get('n1', 'N/A'):.2f}, N2={s.get('n2', 'N/A'):.2f}, hist={s.get('historical', 'N/A'):.2f}")
+        print("="*70)
+    
     print("="*70 + "\n")
 
 def get_historical_accuracy(symbol: str = None, days: int = 30) -> List[Dict]:
@@ -498,16 +749,16 @@ async def main():
     
     # 3. Hämta data och utvärdera
     print(f"\n📥 Hämtar aktiedata och utvärderar triggers ({evaluation_time})...")
-    results = evaluate_all_triggers(evaluation_time=evaluation_time)
+    results, signals = evaluate_all_triggers(evaluation_time=evaluation_time)
     
     # 4. Skriv ut resultat
-    print_results(results, evaluation_time=evaluation_time)
+    print_results(results, evaluation_time=evaluation_time, signals=signals)
     
     # 5. Skriv ut historisk statistik
     print_historical_stats()
     
     # 6. Skicka till Discord
-    await send_discord_report(results, evaluation_time=evaluation_time)
+    await send_discord_report(results, evaluation_time=evaluation_time, signals=signals)
     
     print("✅ Klar!")
 
