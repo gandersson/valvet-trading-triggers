@@ -107,6 +107,11 @@ SECTOR_MAP: dict[str, str] = {
     "DKS": "XRT",
     "ROST": "XRT",
     "ULTA": "XRT",
+    # European Tech / Industrials
+    "ASML": "SOXX",   # Semiconductor lithography
+    "SAP": "XLK",     # Enterprise software
+    "ADYEN": "FINX",  # Payments / fintech
+    "SIE": "XLI",     # Industrials / conglomerate
 }
 
 # ETF-metadata (för framtida utökning)
@@ -135,6 +140,7 @@ ETF_INFO: dict[str, dict[str, str]] = {
     "BJK": {"name": "VanEck Gaming ETF", "category": "Consumer"},
     "FXL": {"name": "First Trust Technology AlphaDEX", "category": "Technology"},
     "XRT": {"name": "SPDR S&P Retail ETF", "category": "Consumer"},
+    "XLI": {"name": "Industrial Select Sector SPDR", "category": "Industrials"},
 }
 
 

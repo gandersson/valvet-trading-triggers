@@ -146,6 +146,65 @@ class TestDataFetcherYahoo:
         assert "OVH" in YAHOO_TICKER_MAP
         assert YAHOO_TICKER_MAP["OVH"] == "OVH.PA"
 
+    def test_yahoo_ticker_map_contains_eu_symbols(self):
+        """Test that multiple EU symbols are mapped with correct suffixes."""
+        from data_fetcher import YAHOO_TICKER_MAP
+
+        assert YAHOO_TICKER_MAP.get("ASML") == "ASML.AS"
+        assert YAHOO_TICKER_MAP.get("SAP") == "SAP.DE"
+        assert YAHOO_TICKER_MAP.get("ADYEN") == "ADYEN.AS"
+        assert YAHOO_TICKER_MAP.get("SIE") == "SIE.DE"
+
+    def test_fetch_stock_data_with_fallback_yahoo_fail_avanza_success(self):
+        """Test fallback path: Yahoo fails, Avanza succeeds."""
+        from data_fetcher import AVANZA_FALLBACK_SYMBOLS, AVANZA_URLS
+
+        html = (
+            "<html><body>"
+            + " " * 1000  # pad to avoid "too short" check
+            + '<dl><dt>Senast betalt</dt><dd>12.34 EUR</dd></dl>'
+            + '<p>Högst 12,50 Lägst 12,20</p>'
+            + '<span>+2,50% (0,30)</span>'
+            + "</body></html>"
+        )
+
+        with patch("yfinance.Ticker") as mock_ticker_class:
+            mock_ticker = MagicMock()
+            mock_ticker.history.return_value = pd.DataFrame()
+            mock_ticker_class.return_value = mock_ticker
+
+            with patch(
+                "data_fetcher._run_agent_browser", return_value=html
+            ):
+                from data_fetcher import fetch_stock_data_with_fallback
+
+                result = fetch_stock_data_with_fallback("OVH")
+
+                assert result["source"] == "avanza"
+                assert result["symbol"] == "OVH"
+                assert result["price"] == 12.34
+
+    def test_fetch_stock_data_with_fallback_both_sources_fail(self):
+        """Test that RuntimeError is raised when both Yahoo and Avanza fail."""
+        with patch("yfinance.Ticker") as mock_ticker_class:
+            mock_ticker = MagicMock()
+            mock_ticker.history.return_value = pd.DataFrame()
+            mock_ticker_class.return_value = mock_ticker
+
+            with patch(
+                "data_fetcher._run_agent_browser",
+                side_effect=RuntimeError("Browser timeout"),
+            ):
+                from data_fetcher import fetch_stock_data_with_fallback
+
+                with pytest.raises(RuntimeError) as exc_info:
+                    fetch_stock_data_with_fallback("OVH")
+
+                msg = str(exc_info.value)
+                assert "Failed to fetch data for OVH from all sources" in msg
+                assert "Yahoo error" in msg
+                assert "Avanza error" in msg
+
 
 class TestAvanzaFallback:
     """Test Avanza fallback parsing (kept for infrastructure)."""
@@ -223,18 +282,21 @@ class TestAvanzaFallback:
         # open = price / (1 + change/100) = 12.34 / 1.025
         assert abs(result["open"] - 12.04) < 0.01
 
-    def test_avanza_fallback_symbols_empty(self):
-        """Test that AVANZA_FALLBACK_SYMBOLS is now empty (OVH removed)."""
+    def test_avanza_fallback_symbols_contains_eu(self):
+        """Test that AVANZA_FALLBACK_SYMBOLS contains EU symbols."""
         from data_fetcher import AVANZA_FALLBACK_SYMBOLS
 
-        # OVH now uses YAHOO_TICKER_MAP instead
-        assert "OVH" not in AVANZA_FALLBACK_SYMBOLS
+        assert "OVH" in AVANZA_FALLBACK_SYMBOLS
+        assert "ASML" in AVANZA_FALLBACK_SYMBOLS
 
-    def test_avanza_url_empty(self):
-        """Test that AVANZA_URLS is now empty."""
+    def test_avanza_urls_populated(self):
+        """Test that AVANZA_URLS contains URLs for fallback symbols."""
         from data_fetcher import AVANZA_URLS
 
-        assert "OVH" not in AVANZA_URLS
+        assert "OVH" in AVANZA_URLS
+        assert AVANZA_URLS["OVH"].startswith("https://www.avanza.se/")
+        assert "ASML" in AVANZA_URLS
+        assert AVANZA_URLS["ASML"].startswith("https://www.avanza.se/")
 
     def test_fetch_avanza_unsupported_symbol(self):
         """Test that non-configured symbols raise ValueError."""

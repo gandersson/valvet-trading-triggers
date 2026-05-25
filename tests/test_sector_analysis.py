@@ -98,6 +98,13 @@ class TestGetSectorEtf:
         """Unmapped symbol → empty string."""
         assert get_sector_etf("UNKNOWN") == ""
 
+    def test_get_sector_etf_eu_symbols(self):
+        """EU symbols added in feat/avanza-multi-eu-fallback map to correct ETFs."""
+        assert get_sector_etf("ASML") == "SOXX"
+        assert get_sector_etf("SAP") == "XLK"
+        assert get_sector_etf("ADYEN") == "FINX"
+        assert get_sector_etf("SIE") == "XLI"
+
 
 # =============================================================================
 # fetch_sector_data (mocked yfinance)
