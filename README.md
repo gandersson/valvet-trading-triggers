@@ -71,7 +71,7 @@ python src/trigger_system_v1.py
 ./run_with_webhook.sh
 
 # REST API + Swagger + Chat UI
-uvicorn api_server:app --reload --app-dir src
+.venv/bin/uvicorn api_server:app --reload --app-dir src
 # Swagger: http://127.0.0.1:8000/docs
 # Chat:   http://127.0.0.1:8000/chat
 
@@ -178,11 +178,10 @@ Integrera med Claude, Cursor eller annan AI-assistent:
 Ett interaktivt chattgränssnitt som kompletterar Discord-integrationen. Anropar REST-API:et och visar resultat i chat-bubblor med samma visuella stil som Discord-embeds.
 
 ```bash
-# Starta API:et
-uvicorn api_server:app --reload --app-dir src
-
-# Öppna i webbläsaren
-open http://127.0.0.1:8000/chat
+# REST API + Swagger + Chat UI (kräver att .venv är aktiverad)
+.venv/bin/uvicorn api_server:app --reload --app-dir src
+# Swagger: http://127.0.0.1:8000/docs
+# Chat:   http://127.0.0.1:8000/chat
 ```
 
 **Tillgängliga kommandon:**

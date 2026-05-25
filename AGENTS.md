@@ -40,7 +40,7 @@ python3 -m pytest tests/ --ignore=tests/test_mcp_server.py -v
 python src/mcp_server.py
 
 # REST API + Swagger
-uvicorn api_server:app --reload --app-dir src       # dev mode, http://127.0.0.1:8000/docs
+.venv/bin/uvicorn api_server:app --reload --app-dir src       # dev mode, http://127.0.0.1:8000/docs
 
 # Chat UI
 # Starta API:et ovan, öppna sedan http://127.0.0.1:8000/chat
