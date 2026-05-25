@@ -1,8 +1,8 @@
-"""
-Data Fetcher with fallback logic for trading-triggers.
+"""Data Fetcher with fallback logic for trading-triggers.
 
-Tries Yahoo Finance first (via yfinance), then falls back to Avanza scraping
-for symbols that are known to have issues with Yahoo Finance (e.g. OVH).
+Tries Yahoo Finance first (via yfinance), using an optional ticker symbol
+mapping for stocks that need exchange suffixes (e.g. OVH -> OVH.PA for
+Euronext Paris). Falls back to Avanza scraping only as a last resort.
 
 Usage:
     from data_fetcher import fetch_stock_data_with_fallback
@@ -22,15 +22,21 @@ from resilience import retry_yfinance
 
 logger = logging.getLogger(__name__)
 
-# Symbols that are known to have data quality issues on Yahoo Finance.
-# These will be fetched from Avanza directly.
-AVANZA_FALLBACK_SYMBOLS: set[str] = {"OVH"}
-
-# Avanza URL template for OVH
-# Format: https://www.avanza.se/aktier/om-aktien.html/{avanza_id}/{slug}
-AVANZA_URLS: Dict[str, str] = {
-    "OVH": "https://www.avanza.se/aktier/om-aktien.html/1326722/ovh-groupe-prom-eo-1",
+# Map of short symbols to Yahoo Finance tickers that require exchange suffixes.
+# These are passed to yfinance instead of the bare symbol.
+# Example: OVH is listed on Euronext Paris, so yfinance needs "OVH.PA".
+YAHOO_TICKER_MAP: Dict[str, str] = {
+    "OVH": "OVH.PA",  # Euronext Paris
 }
+
+# Symbols that are known to have data quality issues on Yahoo Finance.
+# These will be fetched from Avanza directly if Yahoo Finance fails.
+# Currently empty — OVH now works via YAHOO_TICKER_MAP.
+AVANZA_FALLBACK_SYMBOLS: set[str] = set()
+
+# Avanza URL template for fallback symbols
+# Format: https://www.avanza.se/aktier/om-aktien.html/{avanza_id}/{slug}
+AVANZA_URLS: Dict[str, str] = {}
 
 
 def _parse_avanza_price(text: str) -> Optional[float]:
@@ -357,13 +363,15 @@ def _parse_avanza_html(html: str, symbol: str) -> Dict:
 def _fetch_yahoo_data(symbol: str) -> Dict:
     """Internal wrapper for Yahoo Finance data fetching.
 
-    This exists so we can catch RetryError specifically.
+    Applies YAHOO_TICKER_MAP to resolve exchange-specific tickers.
     """
-    ticker = yf.Ticker(symbol)
+    yahoo_ticker = YAHOO_TICKER_MAP.get(symbol, symbol)
+    logger.info("Fetching %s from Yahoo Finance (ticker: %s)", symbol, yahoo_ticker)
+    ticker = yf.Ticker(yahoo_ticker)
     hist = ticker.history(period="1d", interval="1m")
 
     if hist is None or hist.empty:
-        raise ValueError(f"No data returned for {symbol}")
+        raise ValueError(f"No data returned for {symbol} (ticker: {yahoo_ticker})")
 
     latest = hist.iloc[-1]
     opening = hist.iloc[0]
@@ -393,6 +401,8 @@ def _fetch_yahoo_data(symbol: str) -> Dict:
 def fetch_stock_data_yahoo(symbol: str) -> Dict:
     """Fetch stock data from Yahoo Finance.
 
+    Applies ticker mapping for exchange-specific symbols automatically.
+
     Raises:
         RetryError: If all retries fail.
         ValueError: If data is incomplete.
@@ -406,7 +416,7 @@ def fetch_stock_data_with_fallback(symbol: str) -> Dict:
     For symbols in AVANZA_FALLBACK_SYMBOLS, tries Yahoo Finance first
     (in case data becomes available), then falls back to Avanza.
 
-    For other symbols, uses Yahoo Finance directly.
+    For other symbols, uses Yahoo Finance directly (with ticker mapping applied).
 
     Args:
         symbol: Stock symbol (e.g. "NVDA", "OVH")
@@ -419,7 +429,7 @@ def fetch_stock_data_with_fallback(symbol: str) -> Dict:
     """
     symbol = symbol.upper()
 
-    # For non-fallback symbols, just use Yahoo Finance
+    # For non-fallback symbols, just use Yahoo Finance (with ticker mapping)
     if symbol not in AVANZA_FALLBACK_SYMBOLS:
         try:
             return fetch_stock_data_yahoo(symbol)
