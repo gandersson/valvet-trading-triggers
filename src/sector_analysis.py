@@ -7,6 +7,7 @@ utvärderar om triggers korrelerar med sektormomentum.
 
 from __future__ import annotations
 
+import logging
 import re
 import sqlite3
 from pathlib import Path
@@ -15,6 +16,8 @@ import pandas as pd
 import yfinance as yf
 
 from resilience import retry_yfinance
+
+logger = logging.getLogger(__name__)
 
 DB_PATH = Path("data/triggers.db")
 
@@ -558,7 +561,7 @@ def init_sector_analysis_tables() -> None:
 
     conn.commit()
     conn.close()
-    print("✅ Sektoranalystabeller initierade")
+    logger.info("Sector analysis tables initialized")
 
 
 def save_sector_analysis(

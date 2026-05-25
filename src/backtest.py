@@ -14,17 +14,15 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 import sqlite3
 import sys
 from datetime import date, datetime, timedelta
-from pathlib import Path
 
 import pandas as pd
 import yfinance as yf
 
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent))
 from resilience import retry_yfinance
 from sector_analysis import (
     evaluate_sector_correlation,
@@ -34,6 +32,8 @@ from sector_analysis import (
     init_sector_analysis_tables,
     save_sector_analysis,
 )
+
+logger = logging.getLogger(__name__)
 
 # === KONFIGURATION ===
 DB_PATH = "data/triggers.db"
@@ -440,7 +440,7 @@ def run_backtest(
     trading_days = 0
 
     for symbol in symbols:
-        print(f"📊 Hämtar data för {symbol}...")
+        logger.info("Fetching data for %s...", symbol)
         try:
             daily_df = fetch_daily_ohlc(
                 symbol,
@@ -448,15 +448,14 @@ def run_backtest(
                 (end_date + timedelta(days=1)).strftime("%Y-%m-%d"),
             )
         except ValueError as e:
-            print(f"   ⚠️  {e}")
+            logger.warning("%s", e)
             continue
 
-        # Försök hämta intradag-data för hela intervallet
         intraday_df: pd.DataFrame | None = None
         try:
             intraday_df = fetch_historical_intraday_range(symbol, start_date, end_date)
         except ValueError:
-            print(f"   ⚠️  Intradag-data saknas för {symbol}, använder OHLC-approximation")
+            logger.warning("No intraday data for %s, using OHLC approximation", symbol)
             intraday_df = None
 
         # Ladda faktiska utvärderingar
@@ -520,9 +519,9 @@ def run_backtest(
         }
         all_results.extend(symbol_results)
 
-        print(
-            f"   ✅ {symbol}: {symbol_evals} triggers, {symbol_hits} träff, "
-            f"{symbol_misses} miss ({hit_rate}% träffsäkerhet)"
+        logger.info(
+            "%s: %s triggers, %s hits, %s misses (%s%% hit rate)",
+            symbol, symbol_evals, symbol_hits, symbol_misses, hit_rate,
         )
 
     return all_results, summary
@@ -631,7 +630,10 @@ def add_sector_analysis(results: list[dict]) -> list[dict]:
     correlated = sum(1 for r in enriched if r.get("sector_correlated"))
     if total_with_sector > 0:
         accuracy = correlated / total_with_sector * 100
-        print(f"   📈 Sektoranalys: {total_with_sector} med sektordata, {correlated} korrekta ({accuracy:.1f}%)")
+        logger.info(
+            "Sector analysis: %s with sector data, %s correct (%.1f%%)",
+            total_with_sector, correlated, accuracy,
+        )
 
     return enriched
 
@@ -687,7 +689,7 @@ def save_backtest_results(results: list[dict]) -> None:
 
     conn.commit()
     conn.close()
-    print(f"💾 Sparade {len(results)} resultat till databasen")
+    logger.info("Saved %s results to database", len(results))
 
 
 # === MARKDOWN-EXPORT ===
@@ -861,7 +863,7 @@ def export_markdown(results: list[dict], summary: dict, start_date: date, end_da
     with open(filename, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
 
-    print(f"📝 Rapport sparad: {filename}")
+    logger.info("Report saved: %s", filename)
     return filename
 
 
@@ -930,7 +932,7 @@ def main() -> int:
     try:
         start_date, end_date = resolve_dates(args)
     except ValueError as e:
-        print(f"❌ Fel: {e}")
+        logger.error("%s", e)
         return 1
 
     print("=" * 70)
@@ -946,11 +948,10 @@ def main() -> int:
     results, summary = run_backtest(symbols, start_date, end_date)
 
     if not results:
-        print("⚠️  Inga resultat att rapportera — kontrollera datum och symboler")
+        logger.warning("No results to report — check dates and symbols")
         return 1
 
-    # Lägg till sektoranalys på varje resultat
-    print("\n📊 Kör sektorkorrelationsanalys...")
+    logger.info("Running sector correlation analysis...")
     results_with_sector = add_sector_analysis(results)
 
     save_backtest_results(results_with_sector)
