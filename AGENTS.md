@@ -1,5 +1,17 @@
 # AGENTS.md — valvet-trading-triggers
 
+## Git workflow
+
+Use **feature branches** for all changes. Create a new branch, do the work there, then merge to `main` when done. Never commit directly to `main`.
+
+```bash
+# On main, create a tracked worktree for the feature
+git worktree add -b feat/example-name ../valvet-trading-triggers-example main
+cd ../valvet-trading-triggers-example
+# ... do work, commit, push ...
+# Go back to main worktree and merge when ready
+```
+
 ## Setup
 
 ```bash
