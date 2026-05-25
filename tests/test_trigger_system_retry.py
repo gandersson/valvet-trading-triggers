@@ -41,7 +41,11 @@ class TestFetchStockDataRetry:
             assert result["open"] == 150.0
 
     def test_fetch_stock_data_raises_on_persistent_failure(self):
-        """When yfinance fails, fetch_stock_data raises RetryError (retry is now active)."""
+        """When yfinance fails persistently, fetch_stock_data raises RuntimeError.
+
+        The retry decorator still attempts 3 retries with exponential backoff,
+        but after all retries are exhausted, the error is wrapped in RuntimeError.
+        """
         with patch("yfinance.Ticker") as mock_ticker_class:
             mock_ticker = MagicMock()
             mock_ticker.history.side_effect = ConnectionError("Persistent failure")
@@ -49,8 +53,11 @@ class TestFetchStockDataRetry:
 
             from trigger_system_v1 import fetch_stock_data
 
-            with pytest.raises(RetryError):
+            # Now raises RuntimeError wrapping the RetryError
+            with pytest.raises(RuntimeError) as exc_info:
                 fetch_stock_data("NVDA")
+            assert "Failed to fetch data" in str(exc_info.value)
+            assert "NVDA" in str(exc_info.value)
 
     def test_fetch_stock_data_with_retry_decorator(self):
         """Verify retry decorator is applied to fetch_stock_data.

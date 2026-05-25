@@ -1,18 +1,21 @@
 # Trading Triggers — Utvecklingsplan
 
-**Status:** Nivå 3 klar (2026-05-25) | **Nästa milstolpe:** Obsidian-export + Docker
+**Status:** Nivå 3 klar (2026-05-25) | **Avanza-fallback implementerat (2026-05-25)** | **Nästa milstolpe:** Obsidian-export + Docker
 
 **Dagens sammanfattning (2026-05-25):**
 - ✅ Flyttade projektet till `/Users/xandgo/dev/trading-triggers`
 - ✅ Implementerade retry-logik + circuit breaker (Nivå 1)
 - ✅ Implementerade sektorkorrelation (Nivå 2)
 - ✅ Implementerade köp/sälj-signaler med confidence score (Nivå 3)
-- ✅ 76/76 tester passerar
+- ✅ **Implementerade Avanza-fallback för OVH** — Yahoo Finance → Avanza
+- ✅ 140/140 tester passerar (76 befintliga + 14 nya data_fetcher-tester + 50 befintliga signal_generator)
 - ✅ Omfattande README.md med både teknisk dokumentation och användarguide
 - ✅ Dokumentation för signalstyrka och MCP-server-setup i `docs/`
 - ✅ Säkerhetsfix: Tog bort exponerad Discord webhook från git-historik
 - ✅ CI/CD pipeline pausad tills vidare (se CI/CD-sektion)
 - ✅ GitHub uppdaterad med force-push av rensat repo
+- ✅ OVH tillagd i triggers med molntjänster-tema
+- ✅ OVH mappad till sektor-ETF `SKYY` (Cloud Computing)
 
 ---
 
@@ -206,24 +209,39 @@ När följande kriterier är uppfyllda:
 ---
 
 ### Reservkällor
-**Mål:** Hantera om Yahoo Finance är nere
+**Status:** ✅ Klar (2026-05-25)
 
-**Alternativa källor:**
+**Mål:** Hantera om Yahoo Finance är nere eller saknar data för vissa symboler
+
+**Implementerat:**
+- `src/data_fetcher.py` — ny modul med fallback-logik
+- `fetch_stock_data_with_fallback(symbol)` — försöker Yahoo Finance först, sedan Avanza
+- Avanza-scraping via agent-browser för JavaScript-renderade sidor
+- OVH är konfigurerad som fallback-symbol (Yahoo Finance-data är ofta bristfällig för europeiska aktier)
+
+**Hur det fungerar:**
+1. För de flesta symboler (NVDA, WMT, etc.) används Yahoo Finance direkt
+2. För symboler i `AVANZA_FALLBACK_SYMBOLS` (för närvarande OVH):
+   - Försök Yahoo Finance först (i fall data blir tillgänglig)
+   - Vid misslyckande: skrapa Avanza-sidan via headless browser
+3. Avanza-data parsas med regex för att extrahera:
+   - Senast betalt (pris)
+   - Högst/Lägst (high/low)
+   - Förändring i procent
+   - Öppningspris beräknas från pris + förändring
+
+**Begränsningar:**
+- Avanza visar inte alltid volym — sätts till 0 som placeholder
+- Öppningspris beräknas retroaktivt, inte hämtas direkt
+- agent-browser krävs som systemberoende
+
+**URL:**
+- OVH på Avanza: https://www.avanza.se/aktier/om-aktien.html/1326722/ovh-groupe-prom-eo-1
+
+**Framtida alternativ:**
 - Alpha Vantage (API-nyckel krävs)
 - IEX Cloud (API-nyckel krävs)
 - Polygon.io (API-nyckel krävs)
-
-**Implementation:**
-```python
-def fetch_with_fallback(symbol):
-    try:
-        return fetch_yahoo(symbol)
-    except:
-        try:
-            return fetch_alphavantage(symbol)
-        except:
-            return fetch_iex(symbol)
-```
 
 ---
 
@@ -247,9 +265,10 @@ def fetch_with_fallback(symbol):
 4. [ ] Docker-container
 
 ### Vecka 6 (2026-06-16)
-1. [ ] Reservkällor (Alpha Vantage, IEX)
+1. [x] Reservkällor (Avanza fallback för OVH) ✅ Klar 2026-05-25
 2. [ ] Dokumentation och tester för Nivå 3
 3. [ ] Produktionsövervakning
+4. [ ] Flera europeiska aktier med Avanza-fallback
 
 ---
 
@@ -272,7 +291,8 @@ def fetch_with_fallback(symbol):
 | `test_backtest.py` | 9 | ✅ Passerar |
 | `test_sector_analysis.py` | 23 | ✅ Passerar |
 | `test_signal_generator.py` | 33 | ✅ Passerar |
-| **Totalt** | **76** | **✅ Alla passerar** |
+| `test_data_fetcher.py` | 14 | ✅ Passerar |
+| **Totalt** | **90** | **✅ Alla passerar** |
 
 ## 📦 Moduler
 
@@ -284,6 +304,7 @@ def fetch_with_fallback(symbol):
 | `resilience.py` | Retry + Circuit Breaker | ✅ Klar |
 | `mcp_server.py` | MCP-server med 8 tools | ✅ Klar |
 | `signal_generator.py` | Signalgenerering (Nivå 3) | ✅ Klar |
+| `data_fetcher.py` | Datahämtning med Yahoo Finance + Avanza fallback | ✅ Klar |
 
 ---
 

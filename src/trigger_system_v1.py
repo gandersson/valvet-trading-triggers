@@ -12,9 +12,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Optional
 
-import yfinance as yf
 import aiohttp
 
+from data_fetcher import fetch_stock_data_with_fallback
 from resilience import retry_yfinance, discord_circuit_breaker
 from signal_generator import (
     calculate_confidence_score,
@@ -44,7 +44,7 @@ load_env_file()
 
 # === KONFIGURATION ===
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL", "")
-STOCKS = ["NVDA", "WMT", "TTWO", "WDAY", "ENPH"]
+STOCKS = ["NVDA", "WMT", "TTWO", "WDAY", "ENPH", "OVH"]
 DB_PATH = "data/triggers.db"
 
 # === DATABAS ===
@@ -145,44 +145,17 @@ def get_db_connection():
     return sqlite3.connect(DB_PATH, timeout=10.0)
 
 # === DATAHÄMTNING ===
-@retry_yfinance
 def fetch_stock_data(symbol: str) -> Dict:
-    """Hämta aktuell data från Yahoo Finance.
+    """Hämta aktuell data med automatisk fallback till Avanza.
+
+    För de flesta symboler används Yahoo Finance. För symboler i
+    AVANZA_FALLBACK_SYMBOLS (t.ex. OVH) provas Yahoo Finance först,
+    sedan Avanza vid misslyckande.
 
     Raises:
-        Exception: Om datahämtningen misslyckas efter alla retries.
-        ValueError: Om data saknas eller är ofullständig.
+        RuntimeError: Om alla datakällor misslyckas.
     """
-    ticker = yf.Ticker(symbol)
-    hist = ticker.history(period="1d", interval="1m")
-
-    if hist is None or hist.empty:
-        raise ValueError(f"No data returned for {symbol}")
-
-    # Senaste datapunkt
-    latest = hist.iloc[-1]
-    # Öppning
-    opening = hist.iloc[0]
-
-    data = {
-        "symbol": symbol,
-        "price": round(latest["Close"], 2),
-        "open": round(opening["Open"], 2),
-        "high": round(hist["High"].max(), 2),
-        "low": round(hist["Low"].min(), 2),
-        "volume": int(latest["Volume"]),
-        "change_pct": round(
-            (latest["Close"] - opening["Open"]) / opening["Open"] * 100, 2
-        ),
-        "timestamp": latest.name.strftime("%Y-%m-%d %H:%M:%S"),
-    }
-
-    required_fields = ("symbol", "price", "open", "high", "low", "volume", "change_pct", "timestamp")
-    missing = [f for f in required_fields if data.get(f) is None]
-    if missing:
-        raise ValueError(f"Incomplete data for {symbol}, missing fields: {missing}")
-
-    return data
+    return fetch_stock_data_with_fallback(symbol)
 
 def save_market_data(data: Dict):
     """Spara marknadsdata till SQLite"""
@@ -229,6 +202,7 @@ def create_triggers():
             (today, "TTWO", "Premarket_Break", "bryter premarket-high/low", "premarket_report"),
             (today, "WDAY", "Gap_Defense", "rapportgapet försvaras", "premarket_report"),
             (today, "ENPH", "Momentum", "momentum kvar efter uppgradering", "premarket_report"),
+            (today, "OVH", "Momentum", "molntjänster accelererar i Europa", "premarket_report"),
         ]
         
         for t in triggers:

@@ -80,6 +80,8 @@ SECTOR_MAP: Dict[str, str] = {
     "PANW": "HACK",
     "FTNT": "HACK",
     "CYBR": "HACK",
+    # Cloud / Hosting (European)
+    "OVH": "SKYY",
     # Fintech
     "SQ": "FINX",
     "PYPL": "FINX",
