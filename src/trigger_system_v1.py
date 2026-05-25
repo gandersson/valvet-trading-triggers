@@ -147,6 +147,11 @@ def init_db():
 
 
 def get_db_connection():
+    db_dir = os.path.dirname(DB_PATH)
+    if db_dir:
+        os.makedirs(db_dir, exist_ok=True)
+    if not os.path.exists(DB_PATH):
+        init_db()
     return sqlite3.connect(DB_PATH, timeout=10.0)
 
 
@@ -353,6 +358,8 @@ def get_sector_correlation_accuracy(symbol: str) -> float:
         if total == 0:
             return 0.5
         return round(min(1.0, max(0.0, correlated / total)), 4)
+    except sqlite3.OperationalError:
+        return 0.5
     finally:
         conn.close()
 
