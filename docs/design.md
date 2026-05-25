@@ -141,6 +141,7 @@ GET  /api/v1/metrics/accuracy    # Trigger-träffsäkerhet
 - **Email:** HTML-baserade rapporter via SMTP
 - **Slack:** Webhook API
 - **Console:** Lokala loggar och stdout
+- **Chattgränssnitt:** Interaktiv webbläsarbaserad chatt på `/chat` (vanilla HTML/CSS/JS)
 
 **Gränssnitt:**
 ```python
@@ -901,7 +902,7 @@ trading-triggers/
 | v1.3 | Backtesting | Testa triggers på historisk data |
 | v1.4 | Portföljtracking | Koppla till användarens portfölj |
 | v1.5 | Alerting-regler | Komplexa villkor (AND/OR/NOT) |
-| v2.0 | Dashboard | Webb-GUI för trigger-hantering |
+| v2.0 | Dashboard | Webb-GUI för trigger-hantering (chattgränssnitt implementerat, `/chat`) |
 
 ---
 

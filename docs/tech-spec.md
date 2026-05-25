@@ -14,11 +14,21 @@
 | Komponent | Val | Motivering |
 |-----------|-----|------------|
 | **Språk** | Python 3.12+ | Bra ekosystem för finansiell data (yfinance, pandas, numpy), stark MCP-SDK-support |
-| **Framework** | FastAPI (ASGI) | Högpresterande async API, bra för MCP-server och REST-endpoints |
+| **Framework** | FastAPI (ASGI) | Högpresterande async API, auto-docs (Swagger), serverar statiskt chattgränssnitt på `/chat` |
 | **Databas** | SQLite (lokal/dev) → PostgreSQL (prod) | Enkel start, migrerbar till PostgreSQL vid skalning |
 | **Cache** | Redis | Realtids-cachning av aktiekurser, rate limit tracking |
 | **Task Queue** | Celery + Redis | Schemalagda jobb (förbörsrapport, trigger-evaluering efter 1h/2h/EOD) |
 | **Scheduler** | Celery Beat | Cron-liknande schemaläggning utan externa beroenden |
+
+### Befintliga gränssnitt
+
+| Gränssnitt | URL/Transport | Beskrivning |
+|-----------|---------------|-------------|
+| **REST API** | `http://127.0.0.1:8000` | FastAPI med Swagger på `/docs` |
+| **Chattgränssnitt** | `http://127.0.0.1:8000/chat` | Single-page app (vanilla HTML/CSS/JS), svenska kommandon |
+| **MCP-server** | stdio | AI-assistentintegration (Claude, Cursor) |
+| **CLI** | `python src/trigger_system_v1.py` | Terminal-baserad körning |
+| **Discord** | webhook | Automatiska push-rapporter |
 
 ### Alternativ beaktade
 

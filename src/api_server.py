@@ -20,6 +20,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 import trigger_system_v1 as ts
@@ -154,6 +156,16 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+static_dir = Path(__file__).parent / "static"
+static_dir.mkdir(exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+
+@app.get("/chat", include_in_schema=False)
+async def chat_ui():
+    """Serve the chat interface."""
+    return FileResponse(static_dir / "chat.html")
 
 
 # ── Health ───────────────────────────────────────────────────────────────────

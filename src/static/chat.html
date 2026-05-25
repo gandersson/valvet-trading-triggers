@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Valvet Trading Chat</title>
+<style>
+:root {
+  --bg: #1a1a2e;
+  --surface: #16213e;
+  --card: #0f3460;
+  --text: #e0e0e0;
+  --muted: #8888aa;
+  --green: #00e676;
+  --red: #ff5252;
+  --gold: #ffd700;
+  --buy: #4caf50;
+  --sell: #f44336;
+  --accent: #7c4dff;
+  --border: #2a2a4a;
+  --input-bg: #0d1b3e;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+}
+
+#app {
+  width: 100%;
+  max-width: 720px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+header {
+  background: var(--surface);
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+header h1 { font-size: 1.1rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.header-status { font-size: 0.75rem; padding: 3px 10px; border-radius: 10px; }
+.header-status.online { background: #1b3a1b; color: var(--green); }
+.header-status.offline { background: #3a1b1b; color: var(--red); }
+
+#quick-bar {
+  display: flex;
+  gap: 6px;
+  padding: 10px 14px;
+  overflow-x: auto;
+  flex-shrink: 0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+#quick-bar button {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--card);
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+#quick-bar button:hover { background: var(--accent); color: #fff; }
+
+#messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.message {
+  display: flex;
+  gap: 10px;
+  max-width: 90%;
+  animation: fadeIn 0.2s ease;
+}
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+.message.user { align-self: flex-end; flex-direction: row-reverse; }
+.message.system { align-self: flex-start; }
+
+.avatar {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+.message.user .avatar { background: var(--accent); }
+.message.system .avatar { background: var(--card); }
+
+.bubble {
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+.message.user .bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
+.message.system .bubble { background: #1a1a3a; border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0;
+  overflow: hidden;
+  width: 100%;
+}
+.card-header {
+  padding: 12px 16px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 8px;
+}
+.card-header.green { background: #0a2a0a; color: var(--green); }
+.card-header.red { background: #2a0a0a; color: var(--red); }
+.card-body { padding: 12px 16px; }
+.card-footer {
+  padding: 8px 16px;
+  border-top: 1px solid var(--border);
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.result-item {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--card);
+  font-size: 0.8rem;
+}
+.result-item .name { font-weight: 600; margin-bottom: 2px; }
+.result-item .price { color: var(--muted); }
+.result-item .change-positive { color: var(--green); }
+.result-item .change-negative { color: var(--red); }
+
+.section-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 10px 0 6px;
+  display: flex; align-items: center; gap: 6px;
+  color: var(--text);
+}
+.section-title:first-child { padding-top: 0; }
+
+.signal-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 0;
+  font-size: 0.82rem;
+}
+.signal-row .stars { color: var(--gold); }
+.signal-row .conf { color: var(--muted); font-size: 0.75rem; }
+
+.stat-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 4px 0;
+  font-size: 0.82rem;
+}
+.stat-row .label { color: var(--muted); }
+.stat-row .value { font-weight: 500; }
+
+.help-item { padding: 3px 0; font-size: 0.82rem; }
+.help-item code { background: var(--card); padding: 1px 6px; border-radius: 3px; font-size: 0.78rem; }
+
+.spinner {
+  display: inline-block; width: 16px; height: 16px;
+  border: 2px solid var(--muted); border-top-color: var(--accent);
+  border-radius: 50%; animation: spin 0.6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.error-block { color: var(--red); font-size: 0.82rem; }
+.empty-block { color: var(--muted); font-size: 0.82rem; font-style: italic; }
+
+form {
+  display: flex;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+form input {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  color: var(--text);
+  font-size: 0.88rem;
+  outline: none;
+}
+form input:focus { border-color: var(--accent); }
+form button {
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.88rem;
+  cursor: pointer;
+  font-weight: 500;
+}
+form button:hover { opacity: 0.9; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>📈 Valvet Trading Triggers</h1>
+    <span class="header-status" id="status">● Kollar...</span>
+  </header>
+
+  <div id="quick-bar">
+    <button data-cmd="utvärdera 1h">📊 Utvärdera 1h</button>
+    <button data-cmd="utvärdera 2h">📊 Utvärdera 2h</button>
+    <button data-cmd="utvärdera EOD">📊 Utvärdera EOD</button>
+    <button data-cmd="triggers">📋 Triggers</button>
+    <button data-cmd="signaler">📈 Signaler</button>
+    <button data-cmd="marknad">💵 Marknad</button>
+    <button data-cmd="statistik">📉 Statistik</button>
+    <button data-cmd="backtest">⏮ Backtest</button>
+    <button data-cmd="hjälp">❓ Hjälp</button>
+  </div>
+
+  <div id="messages">
+    <div class="message system">
+      <div class="avatar">🤖</div>
+      <div class="bubble">
+        Hej! Jag är Valvet Trading Bot.<br>
+        Skriv ett kommando eller använd knapparna ovan.<br>
+        Exempel: <code>utvärdera 1h</code>, <code>statistik NVDA</code>, <code>marknad WMT</code><br>
+        Skriv <code>hjälp</code> för alla kommandon.
+      </div>
+    </div>
+  </div>
+
+  <form id="chat-form">
+    <input id="chat-input" type="text" placeholder="Skriv ett kommando, t.ex. 'utvärdera 1h'..." autofocus>
+    <button type="submit">Skicka</button>
+  </form>
+</div>
+
+<script>
+const API = '';
+const messagesEl = document.getElementById('messages');
+const inputEl = document.getElementById('chat-input');
+const statusEl = document.getElementById('status');
+
+function addUserMessage(text) {
+  const div = document.createElement('div');
+  div.className = 'message user';
+  div.innerHTML = `<div class="avatar">👤</div><div class="bubble">${esc(text)}</div>`;
+  messagesEl.appendChild(div);
+  scrollDown();
+}
+
+function addSystemCard(html) {
+  const div = document.createElement('div');
+  div.className = 'message system';
+  div.innerHTML = `<div class="avatar">🤖</div><div class="bubble" style="padding:0;background:transparent;border:none;max-width:100%">${html}</div>`;
+  messagesEl.appendChild(div);
+  scrollDown();
+}
+
+function addSystemText(text) {
+  const div = document.createElement('div');
+  div.className = 'message system';
+  div.innerHTML = `<div class="avatar">🤖</div><div class="bubble">${text}</div>`;
+  messagesEl.appendChild(div);
+  scrollDown();
+}
+
+function addSpinner() {
+  const div = document.createElement('div');
+  div.className = 'message system';
+  div.id = 'spinner-msg';
+  div.innerHTML = '<div class="avatar">🤖</div><div class="bubble"><span class="spinner"></span></div>';
+  messagesEl.appendChild(div);
+  scrollDown();
+}
+
+function removeSpinner() {
+  const el = document.getElementById('spinner-msg');
+  if (el) el.remove();
+}
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function scrollDown() {
+  requestAnimationFrame(() => { messagesEl.scrollTop = messagesEl.scrollHeight; });
+}
+
+async function checkHealth() {
+  try {
+    const r = await fetch(API + '/health');
+    if (r.ok) {
+      statusEl.textContent = '● Online';
+      statusEl.className = 'header-status online';
+    } else {
+      statusEl.textContent = '● Offline';
+      statusEl.className = 'header-status offline';
+    }
+  } catch {
+    statusEl.textContent = '● Offline';
+    statusEl.className = 'header-status offline';
+  }
+}
+
+function formatPrice(price) { return '$' + (Number(price) || 0).toFixed(2); }
+function formatChange(pct) { return (Number(pct) > 0 ? '+' : '') + (Number(pct) || 0).toFixed(2) + '%'; }
+function stars(n) { return '⭐'.repeat(Math.max(1, Math.min(5, Number(n) || 1))); }
+
+function renderEvaluateCard(data) {
+  const results = data.results || [];
+  const signals = data.signals || [];
+  const timeLabel = data.evaluation_time || '1h';
+  const hits = results.filter(r => r.result === 'hit').length;
+  const misses = results.filter(r => r.result === 'miss').length;
+  const isGreen = hits >= misses;
+
+  let html = '<div class="card">';
+  html += `<div class="card-header ${isGreen ? 'green' : 'red'}">📊 Trigger-rapport: ${timeLabel}</div>`;
+  html += '<div class="card-body">';
+
+  if (results.length > 0) {
+    html += '<div class="result-grid">';
+    for (const r of results) {
+      const emoji = r.result === 'hit' ? '✅' : '❌';
+      const colorIcon = r.change_pct > 0 ? '🟢' : '🔴';
+      html += `<div class="result-item">
+        <div class="name">${emoji} ${esc(r.symbol)} (${esc(r.trigger_type)})</div>
+        <div class="price">${colorIcon} ${formatPrice(r.open)} → ${formatPrice(r.price)}
+          <span class="${r.change_pct >= 0 ? 'change-positive' : 'change-negative'}">(${formatChange(r.change_pct)})</span>
+        </div>
+      </div>`;
+    }
+    html += '</div>';
+
+    html += '<div class="section-title">📈 Sammanfattning</div>';
+    html += `<div class="stat-row"><span class="label">Träffar / Missar</span><span class="value">${hits} / ${misses} (${results.length > 0 ? Math.round(hits / results.length * 100) : 0}%)</span></div>`;
+  }
+
+  const buySignals = signals.filter(s => s.signal === 'buy');
+  const sellSignals = signals.filter(s => s.signal === 'sell');
+
+  if (buySignals.length > 0) {
+    html += `<div class="section-title">📗 Köpsignaler (${buySignals.length})</div>`;
+    for (const s of buySignals) {
+      html += `<div class="signal-row">🟢 ${esc(s.symbol)} <span class="stars">${stars(s.strength)}</span> <span class="conf">(${(s.confidence_score || 0).toFixed(2)})</span></div>`;
+    }
+  }
+  if (sellSignals.length > 0) {
+    html += `<div class="section-title">📕 Säljsignaler (${sellSignals.length})</div>`;
+    for (const s of sellSignals) {
+      html += `<div class="signal-row">🔴 ${esc(s.symbol)} <span class="stars">${stars(s.strength)}</span> <span class="conf">(${(s.confidence_score || 0).toFixed(2)})</span></div>`;
+    }
+  }
+
+  if (results.length === 0) {
+    html += '<div class="empty-block">Inga aktiva triggers att utvärdera idag.</div>';
+  }
+
+  html += '</div>';
+  html += '<div class="card-footer">Valvet Trading Triggers 🤖📈</div>';
+  html += '</div>';
+  return html;
+}
+
+function renderTriggersCard(triggers) {
+  let html = '<div class="card">';
+  html += '<div class="card-header">📋 Aktiva triggers</div>';
+  html += '<div class="card-body">';
+  if (triggers.length === 0) {
+    html += '<div class="empty-block">Inga aktiva triggers idag.</div>';
+  } else {
+    html += '<div class="result-grid">';
+    for (const t of triggers) {
+      html += `<div class="result-item">
+        <div class="name">${esc(t.symbol)}</div>
+        <div class="price">${esc(t.trigger_type)} — ${esc(t.condition)}</div>
+      </div>`;
+    }
+    html += '</div>';
+  }
+  html += '</div></div>';
+  return html;
+}
+
+function renderSignalsCard(signals) {
+  let html = '<div class="card">';
+  html += '<div class="card-header">📈 Signaler</div>';
+  html += '<div class="card-body">';
+  if (signals.length === 0) {
+    html += '<div class="empty-block">Inga signaler idag.</div>';
+  } else {
+    for (const s of signals) {
+      const icon = s.signal === 'buy' ? '🟢' : '🔴';
+      html += `<div class="signal-row">${icon} ${esc(s.symbol)} <span class="stars">${stars(s.strength)}</span> <span class="conf">(${(s.confidence_score || 0).toFixed(2)})</span> — ${esc(s.recommendation || '')}</div>`;
+    }
+  }
+  html += '</div></div>';
+  return html;
+}
+
+function renderStatsCard(stats, accuracy) {
+  let html = '<div class="card">';
+  html += '<div class="card-header">📉 Statistik</div>';
+  html += '<div class="card-body">';
+  if (stats.length === 0) {
+    html += '<div class="empty-block">Ingen statistik tillgänglig.</div>';
+  } else {
+    for (const s of stats) {
+      html += `<div class="section-title">${esc(s.symbol)} — ${esc(s.trigger_type)}</div>`;
+      html += `<div class="stat-row"><span class="label">Hit rate</span><span class="value">${Math.round(s.hit_rate * 100)}% (${s.hits}/${s.total})</span></div>`;
+    }
+    if (accuracy) {
+      html += '<div class="section-title" style="margin-top:8px">Detaljerad accuracy</div>';
+      html += `<div class="stat-row"><span class="label">N1 (trigger)</span><span class="value">${(accuracy.n1_trigger_accuracy || 0).toFixed(2)}</span></div>`;
+      html += `<div class="stat-row"><span class="label">N2 (sektor)</span><span class="value">${(accuracy.n2_sector_accuracy || 0).toFixed(2)}</span></div>`;
+      html += `<div class="stat-row"><span class="label">Historisk</span><span class="value">${(accuracy.historical_combined_accuracy || 0).toFixed(2)}</span></div>`;
+    }
+  }
+  html += '</div></div>';
+  return html;
+}
+
+function renderMarketCard(data) {
+  let html = '<div class="card">';
+  html += '<div class="card-header">💵 Marknadsdata</div>';
+  html += '<div class="card-body">';
+  if (data.length === 0) {
+    html += '<div class="empty-block">Ingen marknadsdata tillgänglig.</div>';
+  } else {
+    html += '<div class="result-grid">';
+    for (const d of data) {
+      const change = d.close != null && d.open != null ? ((d.close - d.open) / d.open * 100) : 0;
+      const icon = change >= 0 ? '🟢' : '🔴';
+      html += `<div class="result-item">
+        <div class="name">${esc(d.symbol)}</div>
+        <div class="price">${icon} ${formatPrice(d.open)} → ${formatPrice(d.close)} <span class="${change >= 0 ? 'change-positive' : 'change-negative'}">(${formatChange(change)})</span></div>
+      </div>`;
+    }
+    html += '</div>';
+  }
+  html += '</div></div>';
+  return html;
+}
+
+function renderBacktestCard(results) {
+  let html = '<div class="card">';
+  html += '<div class="card-header">⏮ Backtest-resultat</div>';
+  html += '<div class="card-body">';
+  if (results.length === 0) {
+    html += '<div class="empty-block">Inga backtest-resultat.</div>';
+  } else {
+    const hits = results.filter(r => r.result === 'hit').length;
+    html += `<div class="stat-row" style="margin-bottom:8px"><span class="label">Träffar / Totalt</span><span class="value">${hits}/${results.length} (${Math.round(hits / results.length * 100)}%)</span></div>`;
+    html += '<div class="result-grid">';
+    for (const r of results) {
+      const icon = r.result === 'hit' ? '✅' : '❌';
+      html += `<div class="result-item">
+        <div class="name">${icon} ${esc(r.symbol)}</div>
+        <div class="price">${esc(r.target_date)} — ${formatPrice(r.open_price)} → ${formatPrice(r.price_at_eval)} <span class="${r.change_pct >= 0 ? 'change-positive' : 'change-negative'}">(${formatChange(r.change_pct)})</span></div>
+      </div>`;
+    }
+    html += '</div>';
+  }
+  html += '</div></div>';
+  return html;
+}
+
+function renderHelp() {
+  let html = '<div class="card">';
+  html += '<div class="card-header">❓ Kommandon</div>';
+  html += '<div class="card-body">';
+  const cmds = [
+    ['<code>utvärdera 1h</code>', 'Kör utvärdering (1h, 2h eller EOD)'],
+    ['<code>triggers</code>', 'Visa dagens aktiva triggers'],
+    ['<code>signaler</code>', 'Visa dagens köp-/säljsignaler'],
+    ['<code>statistik NVDA</code>', 'Visa historisk statistik för en aktie'],
+    ['<code>statistik</code>', 'Statistik för alla aktier'],
+    ['<code>marknad NVDA</code>', 'Visa marknadsdata för en aktie'],
+    ['<code>marknad</code>', 'Marknadsdata för alla bevakade'],
+    ['<code>backtest NVDA,WMT 30</code>', 'Kör backtest (dagar, max 365)'],
+    ['<code>hjälp</code>', 'Visa denna hjälptext'],
+  ];
+  for (const [cmd, desc] of cmds) {
+    html += `<div class="help-item">${cmd} — ${desc}</div>`;
+  }
+  html += '</div></div>';
+  return html;
+}
+
+async function processCommand(raw) {
+  const input = raw.trim();
+  if (!input) return;
+
+  addUserMessage(input);
+  addSpinner();
+
+  try {
+    const lower = input.toLowerCase();
+
+    if (/^(hjälp|help)$/i.test(input)) {
+      removeSpinner();
+      addSystemCard(renderHelp());
+      return;
+    }
+
+    if (/^utvärdera\b|^evaluera\b/i.test(input)) {
+      let time = '1h';
+      const m = input.match(/(1h|2h|eod)/i);
+      if (m) time = m[1].toUpperCase() === 'EOD' ? 'EOD' : m[1].toLowerCase();
+      const r = await fetch(API + '/evaluate/all?evaluation_time=' + time, { method: 'POST' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const data = await r.json();
+      removeSpinner();
+      addSystemCard(renderEvaluateCard(data));
+      return;
+    }
+
+    if (/^triggers?$/i.test(input)) {
+      const r = await fetch(API + '/triggers');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const data = await r.json();
+      removeSpinner();
+      addSystemCard(renderTriggersCard(data));
+      return;
+    }
+
+    if (/^signaler$/i.test(input)) {
+      const r = await fetch(API + '/signals');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const data = await r.json();
+      removeSpinner();
+      addSystemCard(renderSignalsCard(data));
+      return;
+    }
+
+    const statsMatch = input.match(/^statistik\s+(\w+)/i);
+    if (/^statistik$/i.test(input) || statsMatch) {
+      const symbol = statsMatch ? statsMatch[1].toUpperCase() : null;
+      const statsUrl = API + '/stats' + (symbol ? '?symbol=' + symbol : '');
+      const r = await fetch(statsUrl);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const stats = await r.json();
+
+      let accuracy = null;
+      if (symbol) {
+        try {
+          const a2 = await fetch(API + '/stats/accuracy?symbol=' + symbol);
+          if (a2.ok) accuracy = await a2.json();
+        } catch {}
+      }
+
+      removeSpinner();
+      addSystemCard(renderStatsCard(stats, accuracy));
+      return;
+    }
+
+    const marketMatch = input.match(/^marknad\s+(\w+)/i);
+    if (/^marknad$/i.test(input) || marketMatch) {
+      const symbol = marketMatch ? marketMatch[1].toUpperCase() : null;
+      const url = API + '/market-data' + (symbol ? '?symbol=' + symbol : '');
+      const r = await fetch(url);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const data = await r.json();
+      removeSpinner();
+      addSystemCard(renderMarketCard(data));
+      return;
+    }
+
+    const backtestMatch = input.match(/^backtest\s+([\w,]+)(?:\s+(\d+))?/i);
+    if (/^backtest$/i.test(input) || backtestMatch) {
+      const symbols = backtestMatch ? backtestMatch[1].toUpperCase().split(',') : ['NVDA','WMT','TTWO','WDAY','ENPH'];
+      const days = backtestMatch && backtestMatch[2] ? parseInt(backtestMatch[2], 10) : 30;
+      const r = await fetch(API + '/backtest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbols, days }),
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const data = await r.json();
+      removeSpinner();
+      addSystemCard(renderBacktestCard(data));
+      return;
+    }
+
+    removeSpinner();
+    addSystemText('⚠️ Okänt kommando: <code>' + esc(input) + '</code><br>Skriv <code>hjälp</code> för att se tillgängliga kommandon.');
+  } catch (e) {
+    removeSpinner();
+    addSystemText('❌ Fel: ' + esc(e.message) + '<br>Kontrollera att servern körs på <code>http://127.0.0.1:8000</code>');
+  }
+}
+
+document.getElementById('chat-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const cmd = inputEl.value;
+  inputEl.value = '';
+  await processCommand(cmd);
+});
+
+document.getElementById('quick-bar').addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  const cmd = btn.dataset.cmd;
+  if (cmd) processCommand(cmd);
+});
+
+checkHealth();
+setInterval(checkHealth, 30000);
+</script>
+</body>
+</html>
