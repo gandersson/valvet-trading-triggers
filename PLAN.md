@@ -1,13 +1,15 @@
 # Trading Triggers — Utvecklingsplan
 
-**Status:** Nivå 2 klar (2026-05-23) | **Nästa milstolpe:** Nivå 3 — Köp/sälj-signaler
+**Status:** Nivå 3 klar (2026-05-25) | **Nästa milstolpe:** Obsidian-export + Docker
 
-**Dagens sammanfattning (2026-05-23):**
+**Dagens sammanfattning (2026-05-25):**
 - ✅ Flyttade projektet till `/Users/xandgo/dev/trading-triggers`
 - ✅ Implementerade retry-logik + circuit breaker (Nivå 1)
 - ✅ Implementerade sektorkorrelation (Nivå 2)
-- ✅ 43/43 tester passerar
+- ✅ Implementerade köp/sälj-signaler med confidence score (Nivå 3)
+- ✅ 76/76 tester passerar
 - ✅ Omfattande README.md med både teknisk dokumentation och användarguide
+- ✅ Dokumentation för signalstyrka och MCP-server-setup i `docs/`
 - ✅ Säkerhetsfix: Tog bort exponerad Discord webhook från git-historik
 - ✅ CI/CD pipeline pausad tills vidare (se CI/CD-sektion)
 - ✅ GitHub uppdaterad med force-push av rensat repo
@@ -22,7 +24,7 @@ Systemet utvärderas i tre nivåer, där varje nivå bygger på föregående:
 |------|-------------|--------|
 | **Nivå 1** | Slog trigger igenom? (prisnivå) | ✅ Klar |
 | **Nivå 2** | Korrelerade trigger med sektorn? (bullish/bearish) | ✅ Klar |
-| **Nivå 3** | Köp/sälj-råd baserat på N1+N2 + historisk accuracy | 🔄 Kommande |
+| **Nivå 3** | Köp/sälj-råd baserat på N1+N2 + historisk accuracy | ✅ Klar |
 
 **Nyckelinsikt:** Det är inte "rätt" eller "fel" att en trigger slår — det viktiga är om **marknaden reagerade i den förväntade riktningen** när den gjorde det.
 
@@ -92,23 +94,29 @@ Systemet utvärderas i tre nivåer, där varje nivå bygger på föregående:
 
 ---
 
-## 🔄 Nivå 3 — Köp/sälj-signaler (Vecka 5, 2026-06)
+## ✅ Nivå 3 — Köp/sälj-signaler (Vecka 5, 2026-05-25)
 
 **Mål:** Generera köp/sälj-råd baserat på Nivå 1 + Nivå 2 + historisk accuracy
 
-**Koncept:**
-- När en trigger inträffar → kontrollera historisk accuracy för den aktien
-- Om Nivå 2-korrelationen är hög (>70%) → ge köp/sälj-signal
-- Signalstyrka baserad på:
-  - Trigger-historik (hur ofta den slår)
-  - Sektor-korrelation (hur ofta riktningen stämmer)
-  - Kombinerad confidence score
+**Status:** ✅ Klar
 
-**Implementation (planerat):**
-- [ ] `src/signal_generator.py` — signalgenerering
-- [ ] Confidence score-algoritm (N1 * N2 * historisk accuracy)
-- [ ] Discord-signal med styrka (1-5)
-- [ ] Backtesting av signaler (hypotetisk P&L)
+**Implementation:**
+- ✅ `src/signal_generator.py` — signalgenerering
+- ✅ Confidence score-algoritm (N1 × N2 × historisk accuracy)
+- ✅ Signalstyrka 1–5 med trösklar (≥0.70→5, ≥0.50→4, ≥0.30→3, ≥0.15→2, <0.15→1)
+- ✅ Styrka 1 returnerar None (för svag att agera på)
+- ✅ Köp/sälj-riktning mappad från trigger-riktning (bullish→buy, bearish→sell)
+- ✅ Hypotetisk P&L-backtesting
+- ✅ 33 tester i `tests/test_signal_generator.py`
+
+**Signalstyrka:**
+| Styrka | Confidence | Åtgärd |
+|--------|-----------|--------|
+| 5 | ≥ 0.70 | Mycket stark signal |
+| 4 | ≥ 0.50 | Stark signal |
+| 3 | ≥ 0.30 | Måttlig signal |
+| 2 | ≥ 0.15 | Svag signal |
+| 1 | < 0.15 | Ingen signal (avvaktar) |
 
 ---
 
@@ -232,10 +240,11 @@ def fetch_with_fallback(symbol):
 2. [x] Förbättrad backtesting med sektordata
 3. [x] 43 tester passerar (20 + 23)
 
-### Vecka 5 (2026-06-09) 🔄
-1. [ ] **Nivå 3** — Köp/sälj-signaler med confidence score
-2. [ ] Obsidian-export med automatisk commit/push
-3. [ ] Docker-container
+### Vecka 5 (2026-05-25) ✅
+1. [x] **Nivå 3** — Köp/sälj-signaler med confidence score
+2. [x] Dokumentation: `docs/signal-strength.md` och `docs/mcp-server-setup.md`
+3. [ ] Obsidian-export med automatisk commit/push
+4. [ ] Docker-container
 
 ### Vecka 6 (2026-06-16)
 1. [ ] Reservkällor (Alpha Vantage, IEX)
@@ -262,9 +271,21 @@ def fetch_with_fallback(symbol):
 | `test_trigger_system_retry.py` | 3 | ✅ Passerar |
 | `test_backtest.py` | 9 | ✅ Passerar |
 | `test_sector_analysis.py` | 23 | ✅ Passerar |
-| **Totalt** | **43** | **✅ Alla passerar** |
+| `test_signal_generator.py` | 33 | ✅ Passerar |
+| **Totalt** | **76** | **✅ Alla passerar** |
+
+## 📦 Moduler
+
+| Modul | Beskrivning | Status |
+|-------|-------------|--------|
+| `trigger_system_v1.py` | Huvudmotor — triggers, eval, Discord | ✅ Klar |
+| `backtest.py` | Backtesting mot historisk data | ✅ Klar |
+| `sector_analysis.py` | Sektorkorrelation (bullish/bearish) | ✅ Klar |
+| `resilience.py` | Retry + Circuit Breaker | ✅ Klar |
+| `mcp_server.py` | MCP-server med 8 tools | ✅ Klar |
+| `signal_generator.py` | Signalgenerering (Nivå 3) | ✅ Klar |
 
 ---
 
-*Senast uppdaterad: 2026-05-23*
+*Senast uppdaterad: 2026-05-25*
 *Av: Marvin 🤖*
